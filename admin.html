@@ -576,14 +576,36 @@ async function fsGet(docPath) {
   try {
     const snap = await getDoc(doc(db, ...docPath.split('/')));
     return snap.exists() ? snap.data() : null;
-  } catch(e) { console.error('fsGet error', e); return null; }
+  } catch(e) {
+    if (e.code === 'permission-denied') showFirestoreError();
+    console.error('fsGet error', e); return null;
+  }
 }
 async function fsSet(docPath, data) {
-  await setDoc(doc(db, ...docPath.split('/')), data);
+  try {
+    await setDoc(doc(db, ...docPath.split('/')), data);
+  } catch(e) {
+    if (e.code === 'permission-denied') showFirestoreError();
+    throw e;
+  }
 }
 async function fsGetCol(colPath) {
-  const snap = await getDocs(collection(db, colPath));
-  return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+  try {
+    const snap = await getDocs(collection(db, colPath));
+    return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+  } catch(e) {
+    if (e.code === 'permission-denied') showFirestoreError();
+    return [];
+  }
+}
+function showFirestoreError() {
+  // Only show once
+  if (document.getElementById('firestore-err-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'firestore-err-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#C0392B;color:#fff;font-family:Barlow Condensed,sans-serif;font-size:.85rem;letter-spacing:2px;padding:12px 20px;text-align:center;text-transform:uppercase';
+  banner.innerHTML = `⚠ Permisos de Firestore denegados — <strong>Sigue estos pasos:</strong> Firebase Console → Firestore Database → Reglas → Cambia <code style="background:rgba(0,0,0,.3);padding:2px 6px">allow read, write: if false</code> a <code style="background:rgba(0,0,0,.3);padding:2px 6px">allow read, write: if true</code> → Publicar &nbsp;<button onclick="this.parentElement.remove()" style="background:none;border:1px solid rgba(255,255,255,.5);color:#fff;padding:4px 10px;cursor:pointer;font-family:inherit;font-size:.75rem;letter-spacing:1px;margin-left:8px">✕ Cerrar</button>`;
+  document.body.prepend(banner);
 }
 async function fsAdd(colPath, data) {
   const ref = await addDoc(collection(db, colPath), data);
@@ -670,7 +692,14 @@ function showPanel(name) {
     dashboard: 'Dashboard', partido: 'Próximo Partido', resultados: 'Resultados',
     noticias: 'Noticias', galeria: 'Galería', categorias: 'Categorías'
   };
-  document.getElementById('topbar-panel-title').textContent = titles[name] || name;
+  const titleEl = document.getElementById('topbar-title');
+  if (titleEl) titleEl.textContent = titles[name] || name;
+  const subEl = document.getElementById('topbar-sub');
+  const subs = {
+    dashboard: 'Resumen General', partido: 'Editar Partido', resultados: 'Historial de Partidos',
+    noticias: 'Gestión de Noticias', galeria: 'Gestión de Fotos', categorias: 'Gestión de Plantilla'
+  };
+  if (subEl) subEl.textContent = subs[name] || '';
   if (name === 'dashboard') renderDashboard();
   if (name === 'partido') loadMatchEditor();
   if (name === 'resultados') renderResults('Todas');
