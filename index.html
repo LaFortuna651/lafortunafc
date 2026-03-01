@@ -102,6 +102,8 @@
     .news-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:3rem}
     .news-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:1.5px;background:rgba(212,160,23,.1)}
     .news-card{position:relative;overflow:hidden;cursor:pointer;background:var(--dark2)}
+    .news-card::after{content:'LEER MÁS →';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;letter-spacing:3px;color:var(--gold);background:rgba(0,0,0,.7);padding:8px 18px;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+    .news-card:hover::after{opacity:1}
     .news-card:first-child{grid-row:span 2}
     .news-img-bg{width:100%;height:100%;min-height:220px;object-fit:cover;display:block;transition:transform .6s ease;filter:brightness(.7)}
     .news-card:first-child .news-img-bg{min-height:460px}
@@ -351,6 +353,21 @@
   </div>
 </section>
 
+<!-- MODAL NOTICIA (artículo completo) -->
+<div class="modal-bg" id="news-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeNewsModal()">✕</button>
+    <div id="nm-cat" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:.75rem"></div>
+    <div class="modal-title" id="nm-titulo" style="font-size:clamp(1.6rem,4vw,2.5rem);line-height:1.15"></div>
+    <div class="modal-sub" id="nm-fecha"></div>
+    <div id="nm-img-wrap" style="margin-bottom:1.8rem;display:none">
+      <img id="nm-img" src="" style="width:100%;max-height:420px;object-fit:cover;border:1px solid rgba(212,160,23,.15)"/>
+    </div>
+    <div id="nm-resumen" style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:600;color:var(--white);line-height:1.6;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid rgba(212,160,23,.12)"></div>
+    <div id="nm-contenido" style="color:var(--gray);line-height:1.9;font-size:.95rem;white-space:pre-wrap"></div>
+  </div>
+</div>
+
 <!-- MODAL CATEGORÍA -->
 <div class="modal-bg" id="cat-modal">
   <div class="modal-box">
@@ -405,8 +422,8 @@
       <div class="stat-block"><div class="stat-number" id="stat-goles-favor" data-target="0">0</div><div class="stat-label">Goles a Favor</div></div>
       <div class="stat-block"><div class="stat-number" id="stat-goles-contra" data-target="0">0</div><div class="stat-label">Goles en Contra</div></div>
       <div class="stat-block"><div class="stat-number" id="stat-wins" data-target="0">0</div><div class="stat-label">Victorias</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-draws" data-target="0">0</div><div class="stat-label">Empates</div></div>
       <div class="stat-block"><div class="stat-number" id="stat-defeats" data-target="0">0</div><div class="stat-label">Derrotas</div></div>
-      <div class="stat-block"><div class="stat-number" id="stat-posesion" data-target="0">0</div><div class="stat-label">% Posesión</div></div>
       <div class="stat-block"><div class="stat-number" id="stat-players" data-target="0">0</div><div class="stat-label">Jugadores</div></div>
     </div>
   </div>
@@ -419,8 +436,12 @@
       <p class="section-label">Nuestra Identidad</p>
       <h2 class="section-title">Historia del Club</h2>
       <div class="section-divider"></div>
-      <div class="history-timeline" id="historia-timeline">
-        <div style="text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">Cargando historia del club…</div>
+      <div class="history-timeline">
+        <div class="timeline-item"><div class="timeline-year">Fundación</div><div class="timeline-desc">La Fortuna FC nace del sueño de un grupo de amigos apasionados por el fútbol, con la firme convicción de crear un club que representara los valores del esfuerzo y la comunidad.</div></div>
+        <div class="timeline-item"><div class="timeline-year">Primer Título</div><div class="timeline-desc">El club conquista su primera copa regional, marcando el inicio de una era de victorias que cementó su reputación en el fútbol local.</div></div>
+        <div class="timeline-item"><div class="timeline-year">Ascenso Regional</div><div class="timeline-desc">La Fortuna asciende a la liga regional por primera vez, con un equipo joven y hambriento de gloria.</div></div>
+        <div class="timeline-item"><div class="timeline-year">Nueva Era</div><div class="timeline-desc">Con nueva directiva e inversión en infraestructura, el club moderniza sus instalaciones y refuerza la cantera.</div></div>
+        <div class="timeline-item"><div class="timeline-year">Hoy</div><div class="timeline-desc">La Fortuna se encuentra en su mejor momento histórico, luchando por el ascenso con 5 categorías activas formando futuras estrellas.</div></div>
       </div>
     </div>
     <div class="history-visual">
@@ -711,7 +732,7 @@ async function renderNews() {
     const isFirst = i === 0;
     const bg = n.img ? `background-image:url('${n.img}');background-size:cover;background-position:center` : `background:${BG_COLORS[i%BG_COLORS.length]}`;
     return `
-    <div class="news-card" style="${isFirst?'grid-row:span 2':''}">
+    <div class="news-card" style="${isFirst?'grid-row:span 2':''}" onclick="openNewsModal(${JSON.stringify(n).replace(/"/g,'&quot;')})" style="cursor:pointer">
       <div class="news-img-bg" style="${bg};min-height:${isFirst?'460':'220'}px;display:flex;align-items:center;justify-content:center">
         ${!n.img?`<span style="font-size:${isFirst?'8':'4'}rem;opacity:.12">${EMOJIS[i%EMOJIS.length]}</span>`:''}
       </div>
@@ -779,6 +800,37 @@ function closeCatModal() {
   document.body.style.overflow = '';
 }
 window.closeCatModal = closeCatModal;
+
+// ════════════════════════════════
+// MODAL NOTICIA (artículo completo)
+// ════════════════════════════════
+function openNewsModal(n) {
+  document.getElementById('nm-cat').textContent = n.cat || '';
+  document.getElementById('nm-titulo').textContent = n.titulo || '';
+  document.getElementById('nm-fecha').textContent = n.fecha || '';
+  const imgWrap = document.getElementById('nm-img-wrap');
+  if (n.img) {
+    document.getElementById('nm-img').src = n.img;
+    imgWrap.style.display = 'block';
+  } else {
+    imgWrap.style.display = 'none';
+  }
+  document.getElementById('nm-resumen').textContent = n.resumen || '';
+  document.getElementById('nm-contenido').textContent = n.contenido || '';
+  document.getElementById('news-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+window.openNewsModal = openNewsModal;
+
+function closeNewsModal() {
+  document.getElementById('news-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+window.closeNewsModal = closeNewsModal;
+
+document.getElementById('news-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('news-modal')) closeNewsModal();
+});
 
 function filterModalPlayers(filter, btn) {
   currentModalFilter = filter;
@@ -980,50 +1032,43 @@ async function handleForm(e) {
 window.handleForm = handleForm;
 
 // ════════════════════════════════
-// STATS LIVE
+// STATS LIVE (todo automático desde resultados y jugadores)
 // ════════════════════════════════
 async function updateLiveStats() {
-  const [players, results, statsData] = await Promise.all([getPlayers(), getResults(), fsGet('settings/stats')]);
+  const [players, results] = await Promise.all([getPlayers(), getResults()]);
+
+  // Jugadores totales
   const total = Object.values(players).reduce((s, a) => s + a.length, 0);
-  const statPlayers = document.getElementById('stat-players');
-  if (statPlayers) { statPlayers.dataset.target = total; statPlayers.textContent = total; }
-  const wins = results.filter(r => {
+  setStatBlock('stat-players', total);
+
+  // Calcular desde resultados de Primera
+  let golesF = 0, golesC = 0, wins = 0, draws = 0, defeats = 0;
+  results.forEach(r => {
     const fL = r.local.toLowerCase().includes('fortuna');
-    return fL ? r.glocal > r.gvisitante : r.gvisitante > r.glocal;
-  }).length;
-  const defeats = results.filter(r => {
-    const fL = r.local.toLowerCase().includes('fortuna');
-    return fL ? r.glocal < r.gvisitante : r.gvisitante < r.glocal;
-  }).length;
-  const statWins = document.getElementById('stat-wins');
-  if (statWins) { statWins.dataset.target = wins; statWins.textContent = wins; }
-  const statDefeats = document.getElementById('stat-defeats');
-  if (statDefeats) { statDefeats.dataset.target = defeats; statDefeats.textContent = defeats; }
-  // Manual stats from Firestore
-  if (statsData) {
-    const gf = document.getElementById('stat-goles-favor');
-    const gc = document.getElementById('stat-goles-contra');
-    const pos = document.getElementById('stat-posesion');
-    if (gf) { gf.dataset.target = statsData.golesFavor || 0; gf.textContent = statsData.golesFavor || 0; }
-    if (gc) { gc.dataset.target = statsData.golesContra || 0; gc.textContent = statsData.golesContra || 0; }
-    if (pos) { pos.dataset.target = statsData.posesion || 0; pos.textContent = statsData.posesion || 0; }
-  }
+    const gF = fL ? (r.glocal || 0) : (r.gvisitante || 0);
+    const gC = fL ? (r.gvisitante || 0) : (r.glocal || 0);
+    golesF += gF;
+    golesC += gC;
+    if (gF > gC) wins++;
+    else if (gF === gC) draws++;
+    else defeats++;
+  });
+
+  setStatBlock('stat-goles-favor', golesF);
+  setStatBlock('stat-goles-contra', golesC);
+  setStatBlock('stat-wins', wins);
+  setStatBlock('stat-draws', draws);
+  setStatBlock('stat-defeats', defeats);
 }
 
-async function renderHistory() {
-  const data = await fsGet('settings/historia');
-  const container = document.getElementById('historia-timeline');
-  if (!container) return;
-  if (!data || !data.items || !data.items.length) {
-    container.innerHTML = '<div style="text-align:center;padding:3rem;font-family:\'Barlow Condensed\';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">La historia del club próximamente.</div>';
-    return;
-  }
-  container.innerHTML = data.items.map(item => `
-    <div class="timeline-item">
-      <div class="timeline-year">${item.year}</div>
-      <div class="timeline-desc">${item.desc}</div>
-    </div>`).join('');
+function setStatBlock(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.dataset.target = val;
+  el.textContent = val;
 }
+}
+
 
 // ════════════════════════════════
 // INIT
@@ -1036,7 +1081,6 @@ async function initSite() {
     renderPubResults(),
     renderGallery(),
     updateLiveStats(),
-    renderHistory(),
   ]);
 }
 

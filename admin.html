@@ -207,9 +207,6 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
     <button class="sb-link active" onclick="showPanel('dashboard',this)"><span class="icon">📊</span> Dashboard</button>
     <button class="sb-link" onclick="showPanel('proximo',this)"><span class="icon">⚽</span> Próximo Partido</button>
     <button class="sb-link" onclick="showPanel('resultados',this)"><span class="icon">🏆</span> Resultados</button>
-    <button class="sb-link" onclick="showPanel('estadisticas',this)"><span class="icon">📈</span> Estadísticas</button>
-    <button class="sb-link" onclick="showPanel('historia',this)"><span class="icon">📜</span> Historia</button>
-
     <div class="sb-section">Contenido</div>
     <button class="sb-link" onclick="showPanel('noticias',this)"><span class="icon">📰</span> Noticias</button>
     <button class="sb-link" onclick="showPanel('galeria',this)"><span class="icon">🖼️</span> Galería</button>
@@ -395,36 +392,6 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
     </div>
 
   </div><!-- /content -->
-
-  <!-- ── PANEL ESTADÍSTICAS ── -->
-  <div class="panel" id="panel-estadisticas">
-    <div class="sec-header">
-      <div><div class="sec-sub">Temporada</div><div class="sec-title">Estadísticas</div></div>
-      <button class="btn btn-gold" onclick="saveStats()">💾 Guardar Estadísticas</button>
-    </div>
-    <div class="card">
-      <p style="font-family:'Barlow Condensed';font-size:.8rem;letter-spacing:2px;color:var(--gray);text-transform:uppercase;margin-bottom:1.5rem">
-        Las victorias, derrotas y número de jugadores se calculan automáticamente. Solo completa los valores manuales:
-      </p>
-      <div class="form-grid form-grid-2" style="max-width:500px">
-        <div class="fg"><label>Goles a Favor</label><input id="st-goles-favor" type="number" min="0" placeholder="0"/></div>
-        <div class="fg"><label>Goles en Contra</label><input id="st-goles-contra" type="number" min="0" placeholder="0"/></div>
-        <div class="fg"><label>% Posesión Promedio</label><input id="st-posesion" type="number" min="0" max="100" placeholder="50"/></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── PANEL HISTORIA ── -->
-  <div class="panel" id="panel-historia">
-    <div class="sec-header">
-      <div><div class="sec-sub">Club</div><div class="sec-title">Historia</div></div>
-      <button class="btn btn-gold" onclick="addHistoriaItem()">+ Agregar Evento</button>
-    </div>
-    <div id="historia-list" style="margin-bottom:1.5rem"></div>
-    <div style="display:flex;gap:.75rem;justify-content:flex-end">
-      <button class="btn btn-gold" onclick="saveHistoria()">💾 Guardar Historia</button>
-    </div>
-  </div>
 </div><!-- /main -->
 
 <!-- ── MODALES ── -->
@@ -708,16 +675,14 @@ function showPanel(name, clickedBtn) {
   currentPanel = name;
   const titles = {
     dashboard: 'Dashboard', proximo: 'Próximo Partido', resultados: 'Resultados',
-    noticias: 'Noticias', galeria: 'Galería', categoria: 'Categorías',
-    estadisticas: 'Estadísticas', historia: 'Historia'
+    noticias: 'Noticias', galeria: 'Galería', categoria: 'Categorías'
   };
   const titleEl = document.getElementById('topbar-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
   const subEl = document.getElementById('topbar-sub');
   const subs = {
     dashboard: 'Resumen General', proximo: 'Editar Partido', resultados: 'Historial de Partidos',
-    noticias: 'Gestión de Noticias', galeria: 'Gestión de Fotos', categoria: 'Gestión de Plantilla',
-    estadisticas: 'Datos de la Temporada', historia: 'Línea de Tiempo del Club'
+    noticias: 'Gestión de Noticias', galeria: 'Gestión de Fotos', categoria: 'Gestión de Plantilla'
   };
   if (subEl) subEl.textContent = subs[name] || '';
   if (name === 'dashboard') renderDashboard();
@@ -726,8 +691,6 @@ function showPanel(name, clickedBtn) {
   if (name === 'noticias') renderNewsTable();
   if (name === 'galeria') renderPhotos();
   if (name === 'categoria') renderCategoryPlayers();
-  if (name === 'estadisticas') loadStats();
-  if (name === 'historia') loadHistoria();
 }
 window.showPanel = showPanel;
 
@@ -1261,149 +1224,4 @@ function clearNewsImage() {
 window.clearNewsImage = clearNewsImage;
 
 // ══════════════════════════════════════
-// ESTADÍSTICAS
-// ══════════════════════════════════════
-async function loadStats() {
-  const data = await fsGet('settings/stats');
-  document.getElementById('st-goles-favor').value = (data && data.golesFavor != null) ? data.golesFavor : '';
-  document.getElementById('st-goles-contra').value = (data && data.golesContra != null) ? data.golesContra : '';
-  document.getElementById('st-posesion').value = (data && data.posesion != null) ? data.posesion : '';
-}
-window.loadStats = loadStats;
-
-async function saveStats() {
-  const data = {
-    golesFavor: parseInt(document.getElementById('st-goles-favor').value) || 0,
-    golesContra: parseInt(document.getElementById('st-goles-contra').value) || 0,
-    posesion: parseInt(document.getElementById('st-posesion').value) || 0,
-  };
-  toast('Guardando…', '#888');
-  try {
-    await fsSet('settings/stats', data);
-    toast('✓ Estadísticas guardadas');
-  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
-}
-window.saveStats = saveStats;
-
-// ══════════════════════════════════════
-// HISTORIA
-// ══════════════════════════════════════
-let historiaItems = [];
-
-async function loadHistoria() {
-  const data = await fsGet('settings/historia');
-  historiaItems = (data && data.items) ? [...data.items] : [];
-  renderHistoriaList();
-}
-window.loadHistoria = loadHistoria;
-
-function renderHistoriaList() {
-  const container = document.getElementById('historia-list');
-  if (!historiaItems.length) {
-    container.innerHTML = '<div style="text-align:center;padding:2rem;font-family:\'Barlow Condensed\';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">Agrega el primer evento de la historia del club.</div>';
-    return;
-  }
-  container.innerHTML = historiaItems.map((item, i) => `
-    <div style="background:var(--dark3);border:1px solid rgba(212,160,23,.08);padding:1rem 1.5rem;margin-bottom:.5rem;display:grid;grid-template-columns:160px 1fr auto;gap:1rem;align-items:center">
-      <input value="${item.year}" onchange="historiaItems[${i}].year=this.value"
-        style="background:var(--dark);border:1px solid rgba(255,255,255,.1);color:var(--gold);font-family:'Bebas Neue';font-size:1.3rem;padding:6px 10px;width:100%;outline:none" placeholder="Año / Título"/>
-      <input value="${item.desc.replace(/"/g,'&quot;')}" onchange="historiaItems[${i}].desc=this.value"
-        style="background:var(--dark);border:1px solid rgba(255,255,255,.1);color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:6px 10px;width:100%;outline:none" placeholder="Descripción del evento"/>
-      <button class="btn btn-danger btn-sm" onclick="deleteHistoriaItem(${i})">✕</button>
-    </div>`).join('');
-}
-window.renderHistoriaList = renderHistoriaList;
-
-function addHistoriaItem() {
-  historiaItems.push({ year: '', desc: '' });
-  renderHistoriaList();
-  // Focus last row
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('#historia-list input');
-    if (inputs.length) inputs[inputs.length - 2].focus();
-  }, 50);
-}
-window.addHistoriaItem = addHistoriaItem;
-
-function deleteHistoriaItem(i) {
-  historiaItems.splice(i, 1);
-  renderHistoriaList();
-}
-window.deleteHistoriaItem = deleteHistoriaItem;
-
-async function saveHistoria() {
-  // Collect current values from inputs
-  const rows = document.querySelectorAll('#historia-list > div');
-  rows.forEach((row, i) => {
-    const inputs = row.querySelectorAll('input');
-    if (inputs[0]) historiaItems[i].year = inputs[0].value;
-    if (inputs[1]) historiaItems[i].desc = inputs[1].value;
-  });
-  const valid = historiaItems.filter(x => x.year || x.desc);
-  toast('Guardando…', '#888');
-  try {
-    await fsSet('settings/historia', { items: valid });
-    historiaItems = valid;
-    renderHistoriaList();
-    toast('✓ Historia guardada');
-  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
-}
-window.saveHistoria = saveHistoria;
-
-// ══════════════════════════════════════
 // PASSWORD PROTECTION
-// ══════════════════════════════════════
-const ADMIN_PASSWORD = 'Fortuna2026';
-
-function checkPassword() {
-  const input = document.getElementById('admin-pwd').value;
-  const errDiv = document.getElementById('pwd-error');
-  if (input === ADMIN_PASSWORD) {
-    sessionStorage.setItem('lf_admin_auth', Date.now());
-    document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('app-content').style.display = 'flex';
-    initAdmin();
-  } else {
-    errDiv.style.display = 'block';
-    document.getElementById('admin-pwd').value = '';
-    document.getElementById('admin-pwd').focus();
-    setTimeout(() => errDiv.style.display = 'none', 3000);
-  }
-}
-window.checkPassword = checkPassword;
-
-// Allow Enter key on password screen
-document.getElementById('admin-pwd').addEventListener('keydown', e => {
-  if (e.key === 'Enter') checkPassword();
-});
-
-async function initAdmin() {
-  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es', {
-    weekday:'short', day:'numeric', month:'short', year:'numeric'
-  }).toUpperCase();
-  const today = new Date().toISOString().split('T')[0];
-  ['pm-fecha','r-fecha'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && !el.value) el.value = today;
-  });
-  await renderDashboard();
-}
-
-// Check session
-(function() {
-  const auth = sessionStorage.getItem('lf_admin_auth');
-  const eightHours = 8 * 60 * 60 * 1000;
-  if (auth && (Date.now() - parseInt(auth)) < eightHours) {
-    document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('app-content').style.display = 'flex';
-    initAdmin();
-  } else {
-    setTimeout(() => document.getElementById('admin-pwd').focus(), 100);
-  }
-})();
-
-</script>
-</div><!-- /app-content -->
-
-</body>
-</html>
