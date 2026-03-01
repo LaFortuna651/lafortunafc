@@ -1144,7 +1144,7 @@
     .gallery-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
-      grid-template-rows: repeat(2, 200px);
+      grid-auto-rows: 200px;
       gap: 3px
     }
 
@@ -1153,29 +1153,13 @@
       cursor: pointer
     }
 
-    .gallery-item:nth-child(1) {
-      grid-column: span 5
-    }
-
-    .gallery-item:nth-child(2) {
-      grid-column: span 3
-    }
-
-    .gallery-item:nth-child(3) {
-      grid-column: span 4
-    }
-
-    .gallery-item:nth-child(4) {
-      grid-column: span 4
-    }
-
-    .gallery-item:nth-child(5) {
-      grid-column: span 5
-    }
-
-    .gallery-item:nth-child(6) {
-      grid-column: span 3
-    }
+    /* Patrón de 6 que se repite: 5-3-4 / 4-5-3 */
+    .gallery-item:nth-child(6n+1) { grid-column: span 5 }
+    .gallery-item:nth-child(6n+2) { grid-column: span 3 }
+    .gallery-item:nth-child(6n+3) { grid-column: span 4 }
+    .gallery-item:nth-child(6n+4) { grid-column: span 4 }
+    .gallery-item:nth-child(6n+5) { grid-column: span 5 }
+    .gallery-item:nth-child(6n+6) { grid-column: span 3 }
 
     .gallery-ph {
       width: 100%;
@@ -2323,7 +2307,7 @@
           { icon: '👥', label: 'Afición' }, { icon: '🌟', label: 'Gloria' }
         ];
         grid.innerHTML = placeholders.map((p, i) => `
-      <div class="gallery-item" style="grid-column:span ${GALLERY_COLS[i]}">
+      <div class="gallery-item">
         <div class="gallery-ph">${p.icon} ${p.label}</div>
       </div>`).join('');
         document.getElementById('gallery-load-more').style.display = 'none';
@@ -2339,10 +2323,9 @@
     function appendGallery() {
       const grid = document.getElementById('gallery-grid');
       const batch = _allPhotosList.slice(_photosShown, _photosShown + GALLERY_PAGE);
-      batch.forEach((p, idx) => {
-        const col = GALLERY_COLS[(_photosShown + idx) % GALLERY_COLS.length];
+      batch.forEach((p) => {
         grid.insertAdjacentHTML('beforeend', `
-    <div class="gallery-item" style="grid-column:span ${col}">
+    <div class="gallery-item">
       <div class="gallery-ph" style="background-image:url('${p.src}');background-size:cover;background-position:center;color:transparent"></div>
     </div>`);
       });
