@@ -402,11 +402,11 @@
       <a href="#categorias" class="btn-primary" style="font-size:.8rem;padding:12px 28px">Ver Categorías</a>
     </div>
     <div class="stats-numbers">
-      <div class="stat-block"><div class="stat-number" data-target="68">0</div><div class="stat-label">Goles a Favor</div></div>
-      <div class="stat-block"><div class="stat-number" data-target="21">0</div><div class="stat-label">Goles en Contra</div></div>
-      <div class="stat-block"><div class="stat-number" id="stat-wins" data-target="14">0</div><div class="stat-label">Victorias</div></div>
-      <div class="stat-block"><div class="stat-number" data-target="3">0</div><div class="stat-label">Derrotas</div></div>
-      <div class="stat-block"><div class="stat-number" data-target="72">0</div><div class="stat-label">% Posesión</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-goles-favor" data-target="0">0</div><div class="stat-label">Goles a Favor</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-goles-contra" data-target="0">0</div><div class="stat-label">Goles en Contra</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-wins" data-target="0">0</div><div class="stat-label">Victorias</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-defeats" data-target="0">0</div><div class="stat-label">Derrotas</div></div>
+      <div class="stat-block"><div class="stat-number" id="stat-posesion" data-target="0">0</div><div class="stat-label">% Posesión</div></div>
       <div class="stat-block"><div class="stat-number" id="stat-players" data-target="0">0</div><div class="stat-label">Jugadores</div></div>
     </div>
   </div>
@@ -419,12 +419,8 @@
       <p class="section-label">Nuestra Identidad</p>
       <h2 class="section-title">Historia del Club</h2>
       <div class="section-divider"></div>
-      <div class="history-timeline">
-        <div class="timeline-item"><div class="timeline-year">Fundación</div><div class="timeline-desc">La Fortuna FC nace del sueño de un grupo de amigos apasionados por el fútbol, con la firme convicción de crear un club que representara los valores del esfuerzo y la comunidad.</div></div>
-        <div class="timeline-item"><div class="timeline-year">Primer Título</div><div class="timeline-desc">El club conquista su primera copa regional, marcando el inicio de una era de victorias que cementó su reputación en el fútbol local.</div></div>
-        <div class="timeline-item"><div class="timeline-year">Ascenso Regional</div><div class="timeline-desc">La Fortuna asciende a la liga regional por primera vez, con un equipo joven y hambriento de gloria.</div></div>
-        <div class="timeline-item"><div class="timeline-year">Nueva Era</div><div class="timeline-desc">Con nueva directiva e inversión en infraestructura, el club moderniza sus instalaciones y refuerza la cantera.</div></div>
-        <div class="timeline-item"><div class="timeline-year">Hoy</div><div class="timeline-desc">La Fortuna se encuentra en su mejor momento histórico, luchando por el ascenso con 5 categorías activas formando futuras estrellas.</div></div>
+      <div class="history-timeline" id="historia-timeline">
+        <div style="text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">Cargando historia del club…</div>
       </div>
     </div>
     <div class="history-visual">
@@ -467,11 +463,13 @@
     <form class="contact-form" id="contact-form" onsubmit="handleForm(event)">
 
       <!-- Web3Forms: reemplaza el valor de "value" con tu Access Key -->
-      <input type="hidden" name="access_key" value="c6a28c86-5a88-4fd4-b79b-94676029ffa2"/>
+      <input type="hidden" name="access_key" value="TU-ACCESS-KEY-AQUI"/>
       <!-- Personaliza el asunto que verás en tu email -->
       <input type="hidden" name="subject" id="form-subject-hidden" value="Nuevo mensaje desde La Fortuna FC"/>
       <!-- Nombre del formulario (aparece en el panel de Web3Forms) -->
       <input type="hidden" name="from_name" value="Web La Fortuna FC"/>
+      <!-- Idioma del correo de confirmación -->
+      <input type="hidden" name="language" value="es"/>
       <!-- Evita spam con honeypot -->
       <input type="checkbox" name="botcheck" style="display:none"/>
 
@@ -623,6 +621,13 @@ const db = getFirestore(fbApp);
 // ════════════════════════════════
 // DATA LOADERS (Firebase)
 // ════════════════════════════════
+async function fsGet(docPath) {
+  try {
+    const snap = await getDoc(doc(db, ...docPath.split('/')));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { console.error('fsGet', e); return null; }
+}
+
 async function getNews() {
   const snap = await getDocs(collection(db, 'news'));
   return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
@@ -633,12 +638,6 @@ async function getPlayers() {
     const d = snap.exists() ? snap.data().data : null;
     const players = d || {};
     ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c => { if (!players[c]) players[c] = []; });
-    if (!players['Primera'].length) players['Primera'] = [
-      {id:1,nombre:'Roberto Díaz',numero:1,posicion:'Portero',edad:28,goles:0,partidos:18,asistencias:0},
-      {id:2,nombre:'Andrés Ruiz',numero:3,posicion:'Defensa Central',edad:25,goles:2,partidos:18,asistencias:1},
-      {id:3,nombre:'Mateo Vargas',numero:10,posicion:'Mediapunta',edad:22,goles:11,partidos:18,asistencias:7},
-      {id:4,nombre:'Fernando Ríos',numero:9,posicion:'Delantero Centro',edad:24,goles:15,partidos:17,asistencias:3},
-    ];
     return players;
   } catch(e) { return {}; }
 }
@@ -984,16 +983,46 @@ window.handleForm = handleForm;
 // STATS LIVE
 // ════════════════════════════════
 async function updateLiveStats() {
-  const [players, results] = await Promise.all([getPlayers(), getResults()]);
+  const [players, results, statsData] = await Promise.all([getPlayers(), getResults(), fsGet('settings/stats')]);
   const total = Object.values(players).reduce((s, a) => s + a.length, 0);
   const statPlayers = document.getElementById('stat-players');
-  if (statPlayers) statPlayers.dataset.target = total;
+  if (statPlayers) { statPlayers.dataset.target = total; statPlayers.textContent = total; }
   const wins = results.filter(r => {
     const fL = r.local.toLowerCase().includes('fortuna');
     return fL ? r.glocal > r.gvisitante : r.gvisitante > r.glocal;
   }).length;
+  const defeats = results.filter(r => {
+    const fL = r.local.toLowerCase().includes('fortuna');
+    return fL ? r.glocal < r.gvisitante : r.gvisitante < r.glocal;
+  }).length;
   const statWins = document.getElementById('stat-wins');
-  if (statWins) statWins.dataset.target = wins;
+  if (statWins) { statWins.dataset.target = wins; statWins.textContent = wins; }
+  const statDefeats = document.getElementById('stat-defeats');
+  if (statDefeats) { statDefeats.dataset.target = defeats; statDefeats.textContent = defeats; }
+  // Manual stats from Firestore
+  if (statsData) {
+    const gf = document.getElementById('stat-goles-favor');
+    const gc = document.getElementById('stat-goles-contra');
+    const pos = document.getElementById('stat-posesion');
+    if (gf) { gf.dataset.target = statsData.golesFavor || 0; gf.textContent = statsData.golesFavor || 0; }
+    if (gc) { gc.dataset.target = statsData.golesContra || 0; gc.textContent = statsData.golesContra || 0; }
+    if (pos) { pos.dataset.target = statsData.posesion || 0; pos.textContent = statsData.posesion || 0; }
+  }
+}
+
+async function renderHistory() {
+  const data = await fsGet('settings/historia');
+  const container = document.getElementById('historia-timeline');
+  if (!container) return;
+  if (!data || !data.items || !data.items.length) {
+    container.innerHTML = '<div style="text-align:center;padding:3rem;font-family:\'Barlow Condensed\';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">La historia del club próximamente.</div>';
+    return;
+  }
+  container.innerHTML = data.items.map(item => `
+    <div class="timeline-item">
+      <div class="timeline-year">${item.year}</div>
+      <div class="timeline-desc">${item.desc}</div>
+    </div>`).join('');
 }
 
 // ════════════════════════════════
@@ -1007,6 +1036,7 @@ async function initSite() {
     renderPubResults(),
     renderGallery(),
     updateLiveStats(),
+    renderHistory(),
   ]);
 }
 
