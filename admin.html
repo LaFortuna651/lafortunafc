@@ -13,7 +13,8 @@
   --sidebar:240px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;display:flex;min-height:100vh}
+body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;min-height:100vh}
+#app-content{display:flex;min-height:100vh;width:100%}
 
 /* SIDEBAR */
 #sidebar{
@@ -148,6 +149,52 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;d
 </style>
 </head>
 <body>
+
+<!-- ── PASSWORD LOCK SCREEN ── -->
+<div id="lock-screen" style="
+  position:fixed;inset:0;z-index:9999;
+  background:#0A0A0A;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:1.5rem;
+">
+  <svg width="70" height="84" viewBox="0 0 100 120" fill="none" style="margin-bottom:.5rem">
+    <path d="M50 5 L10 20 L10 65 Q10 95 50 115 Q90 95 90 65 L90 20 Z" fill="#0A0A0A" stroke="#D4A017" stroke-width="2.5"/>
+    <text x="50" y="75" text-anchor="middle" font-family="Bebas Neue" font-size="38" fill="#D4A017">LF</text>
+  </svg>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:3px;color:#D4A017;text-align:center">
+    Panel Administrador<br>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;letter-spacing:4px;color:#888;font-weight:700">LA FORTUNA FC</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:.75rem;width:100%;max-width:320px">
+    <input id="admin-pwd" type="password"
+      placeholder="Contraseña de administrador"
+      style="background:#1A1A1A;border:1px solid rgba(212,160,23,.3);color:#F5F0E8;
+             font-family:'Barlow',sans-serif;font-size:1rem;padding:14px 18px;
+             outline:none;width:100%;text-align:center;letter-spacing:4px"
+      onkeydown="if(event.key==='Enter') checkPassword()"
+    />
+    <button onclick="checkPassword()" style="
+      background:#D4A017;color:#0A0A0A;
+      font-family:'Barlow Condensed',sans-serif;font-weight:900;
+      font-size:.9rem;letter-spacing:3px;text-transform:uppercase;
+      padding:14px;border:none;cursor:pointer;
+      clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+      transition:.2s
+    ">Entrar al Panel</button>
+    <div id="pwd-error" style="
+      display:none;color:#C0392B;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:.8rem;letter-spacing:2px;
+      text-align:center;text-transform:uppercase
+    ">⚠ Contraseña incorrecta</div>
+  </div>
+  <div style="font-family:'Barlow Condensed',sans-serif;font-size:.65rem;letter-spacing:3px;color:rgba(136,136,136,.4);text-transform:uppercase;margin-top:1rem">
+    Acceso restringido · Solo administradores
+  </div>
+</div>
+
+<!-- ── MAIN APP (hidden until logged in) ── -->
+<div id="app-content" style="display:none;width:100%;min-height:100vh;display:none">
 
 <!-- SIDEBAR -->
 <aside id="sidebar">
@@ -1094,12 +1141,51 @@ function handlePhotoUploadFixed(input){
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
-document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase();
-renderDashboard();
+// ══════════════════════════════════════
+// PASSWORD PROTECTION
+// ══════════════════════════════════════
+// Change this password to whatever you want!
+const ADMIN_PASSWORD = 'Fortuna2026';
 
-// Set today as default for date inputs
-const today = new Date().toISOString().split('T')[0];
-['pm-fecha','r-fecha'].forEach(id=>{ const el=document.getElementById(id); if(el&&!el.value) el.value=today; });
+function checkPassword(){
+  const input = document.getElementById('admin-pwd').value;
+  const errDiv = document.getElementById('pwd-error');
+  if(input === ADMIN_PASSWORD){
+    // Save session so they don't need to re-enter for 8 hours
+    sessionStorage.setItem('lf_admin_auth', Date.now());
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'flex';
+    initAdmin();
+  } else {
+    errDiv.style.display = 'block';
+    document.getElementById('admin-pwd').value = '';
+    document.getElementById('admin-pwd').focus();
+    setTimeout(()=> errDiv.style.display='none', 3000);
+  }
+}
+
+function initAdmin(){
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase();
+  renderDashboard();
+  const today = new Date().toISOString().split('T')[0];
+  ['pm-fecha','r-fecha'].forEach(id=>{ const el=document.getElementById(id); if(el&&!el.value) el.value=today; });
+}
+
+// Check if already authenticated this session
+(function(){
+  const auth = sessionStorage.getItem('lf_admin_auth');
+  const eightHours = 8 * 60 * 60 * 1000;
+  if(auth && (Date.now() - parseInt(auth)) < eightHours){
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'flex';
+    initAdmin();
+  } else {
+    // Show lock, focus input
+    setTimeout(()=> document.getElementById('admin-pwd').focus(), 100);
+  }
+})();
 </script>
+</div><!-- /app-content -->
+
 </body>
 </html>
