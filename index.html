@@ -1656,6 +1656,16 @@
     <div class="news-grid" id="news-grid">
       <!-- filled by JS -->
     </div>
+    <div style="text-align:center;margin-top:2.5rem" id="news-load-more" style="display:none">
+      <button onclick="loadMoreNews()" style="
+        background:none;border:1px solid rgba(212,160,23,.4);color:var(--gold);
+        font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;
+        letter-spacing:3px;text-transform:uppercase;padding:14px 40px;cursor:pointer;
+        transition:.2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)
+      " onmouseover="this.style.background='rgba(212,160,23,.1)'" onmouseout="this.style.background='none'">
+        Ver más noticias ↓
+      </button>
+    </div>
     <div style="text-align:center;margin-top:2rem" id="no-news" style="display:none">
       <p
         style="color:var(--gray);font-family:'Barlow Condensed';letter-spacing:3px;font-size:.9rem;text-transform:uppercase">
@@ -1779,6 +1789,16 @@
     <h2 class="section-title">Galería</h2>
     <div class="section-divider"></div>
     <div class="gallery-grid" id="gallery-grid"></div>
+    <div style="text-align:center;margin-top:2.5rem" id="gallery-load-more" style="display:none">
+      <button onclick="loadMoreGallery()" style="
+        background:none;border:1px solid rgba(212,160,23,.4);color:var(--gold);
+        font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;
+        letter-spacing:3px;text-transform:uppercase;padding:14px 40px;cursor:pointer;
+        transition:.2s;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)
+      " onmouseover="this.style.background='rgba(212,160,23,.1)'" onmouseout="this.style.background='none'">
+        Ver más fotos ↓
+      </button>
+    </div>
     <div id="no-gallery" style="display:none"></div>
   </section>
 
@@ -2051,18 +2071,15 @@
     const BG_COLORS = ['linear-gradient(135deg,#1a1a2e,#0f3460)', 'linear-gradient(135deg,#1a0a0a,#2d1515)', 'linear-gradient(135deg,#0a1a0a,#152d15)', 'linear-gradient(135deg,#1a1a0a,#2d2d15)', 'linear-gradient(135deg,#0a0a1a,#15152d)'];
     const EMOJIS = ['⚽', '🏆', '👕', '🎽', '📋', '🏟️'];
 
-    async function renderNews() {
-      const allNews = (await getNews()).filter(n => n.estado === 'Publicado' || !n.estado);
-      const news = [...allNews].reverse().slice(0, 5);
-      const grid = document.getElementById('news-grid');
-      const noNews = document.getElementById('no-news');
-      if (!news.length) { grid.innerHTML = ''; noNews.style.display = 'block'; return; }
-      noNews.style.display = 'none';
-      grid.innerHTML = news.map((n, i) => {
-        const isFirst = i === 0;
-        const bg = n.img ? `background-image:url('${n.img}');background-size:cover;background-position:center` : `background:${BG_COLORS[i % BG_COLORS.length]}`;
-        return `
-    <div class="news-card" style="${isFirst ? 'grid-row:span 2' : ''}" onclick="openNewsModal(${JSON.stringify(n).replace(/"/g, '&quot;')})" style="cursor:pointer">
+    let _allNewsList = [];
+    let _newsShown = 0;
+    const NEWS_PAGE = 5;
+
+    function buildNewsCard(n, i) {
+      const isFirst = i === 0;
+      const bg = n.img ? `background-image:url('${n.img}');background-size:cover;background-position:center` : `background:${BG_COLORS[i % BG_COLORS.length]}`;
+      return `
+    <div class="news-card" style="${isFirst ? 'grid-row:span 2' : ''}" onclick="openNewsModal(${JSON.stringify(n).replace(/"/g, '&quot;')})">
       <div class="news-img-bg" style="${bg};min-height:${isFirst ? '460' : '220'}px;display:flex;align-items:center;justify-content:center">
         ${!n.img ? `<span style="font-size:${isFirst ? '8' : '4'}rem;opacity:.12">${EMOJIS[i % EMOJIS.length]}</span>` : ''}
       </div>
@@ -2073,8 +2090,32 @@
         <div class="news-dt">${n.fecha || ''}</div>
       </div>
     </div>`;
-      }).join('');
     }
+
+    async function renderNews() {
+      const allNews = (await getNews()).filter(n => n.estado === 'Publicado' || !n.estado);
+      _allNewsList = [...allNews].reverse();
+      _newsShown = 0;
+      const grid = document.getElementById('news-grid');
+      const noNews = document.getElementById('no-news');
+      if (!_allNewsList.length) { grid.innerHTML = ''; noNews.style.display = 'block'; return; }
+      noNews.style.display = 'none';
+      grid.innerHTML = '';
+      appendNews();
+    }
+
+    function appendNews() {
+      const grid = document.getElementById('news-grid');
+      const batch = _allNewsList.slice(_newsShown, _newsShown + NEWS_PAGE);
+      batch.forEach((n, idx) => {
+        grid.insertAdjacentHTML('beforeend', buildNewsCard(n, _newsShown + idx));
+      });
+      _newsShown += batch.length;
+      document.getElementById('news-load-more').style.display = _newsShown < _allNewsList.length ? 'block' : 'none';
+    }
+
+    function loadMoreNews() { appendNews(); }
+    window.loadMoreNews = loadMoreNews;
 
     // ════════════════════════════════
     // CATEGORÍAS
@@ -2266,6 +2307,12 @@
     // ════════════════════════════════
     // GALERÍA PÚBLICA
     // ════════════════════════════════
+    let _allPhotosList = [];
+    let _photosShown = 0;
+    const GALLERY_PAGE = 6;
+    // Patrón de columnas que se repite para el masonry
+    const GALLERY_COLS = [5, 3, 4, 4, 5, 3];
+
     async function renderGallery() {
       const photos = await getPhotos();
       const grid = document.getElementById('gallery-grid');
@@ -2275,20 +2322,36 @@
           { icon: '🎽', label: 'Equipo' }, { icon: '🏟️', label: 'Estadio' },
           { icon: '👥', label: 'Afición' }, { icon: '🌟', label: 'Gloria' }
         ];
-        const cols = [5, 3, 4, 4, 5, 3];
         grid.innerHTML = placeholders.map((p, i) => `
-      <div class="gallery-item" style="grid-column:span ${cols[i]}">
+      <div class="gallery-item" style="grid-column:span ${GALLERY_COLS[i]}">
         <div class="gallery-ph">${p.icon} ${p.label}</div>
       </div>`).join('');
+        document.getElementById('gallery-load-more').style.display = 'none';
         return;
       }
-      const display = photos.slice(0, 6);
-      const cols = [5, 3, 4, 4, 5, 3];
-      grid.innerHTML = display.map((p, i) => `
-    <div class="gallery-item" style="grid-column:span ${cols[i] || 3}">
-      <div class="gallery-ph" style="background-image:url('${p.src}');background-size:cover;background-position:center;color:transparent"></div>
-    </div>`).join('');
+      // Las más recientes primero
+      _allPhotosList = [...photos].reverse();
+      _photosShown = 0;
+      grid.innerHTML = '';
+      appendGallery();
     }
+
+    function appendGallery() {
+      const grid = document.getElementById('gallery-grid');
+      const batch = _allPhotosList.slice(_photosShown, _photosShown + GALLERY_PAGE);
+      batch.forEach((p, idx) => {
+        const col = GALLERY_COLS[(_photosShown + idx) % GALLERY_COLS.length];
+        grid.insertAdjacentHTML('beforeend', `
+    <div class="gallery-item" style="grid-column:span ${col}">
+      <div class="gallery-ph" style="background-image:url('${p.src}');background-size:cover;background-position:center;color:transparent"></div>
+    </div>`);
+      });
+      _photosShown += batch.length;
+      document.getElementById('gallery-load-more').style.display = _photosShown < _allPhotosList.length ? 'block' : 'none';
+    }
+
+    function loadMoreGallery() { appendGallery(); }
+    window.loadMoreGallery = loadMoreGallery;
 
     // ════════════════════════════════
     // COUNTER ANIMATION
