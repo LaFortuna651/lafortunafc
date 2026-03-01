@@ -530,29 +530,120 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script>
+<script type="module">
 // ══════════════════════════════════════
-// STORAGE HELPERS
+// FIREBASE + CLOUDINARY CONFIG
 // ══════════════════════════════════════
-const KEYS = {
-  news:'lf_news', players:'lf_players', results:'lf_results',
-  match:'lf_match', photos:'lf_photos'
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, deleteDoc, updateDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDypPnE093twlvr4J0Cl4sxIfRHu77DyAA",
+  authDomain: "la-fortuna-b4580.firebaseapp.com",
+  projectId: "la-fortuna-b4580",
+  storageBucket: "la-fortuna-b4580.firebasestorage.app",
+  messagingSenderId: "909010085808",
+  appId: "1:909010085808:web:78030057789df37ace5875",
+  measurementId: "G-B4MQGE5KKJ"
 };
 
-function load(key){ try{ return JSON.parse(localStorage.getItem(key)||'null') }catch(e){return null} }
-function save(key,data){ localStorage.setItem(key,JSON.stringify(data)) }
+const CLOUDINARY_CLOUD = "dkcabyytx";
+const CLOUDINARY_PRESET = "LaFortuna";
 
-// Defaults
-function getNews(){ return load(KEYS.news)||[] }
-function getPlayers(){ return load(KEYS.players)||defaultPlayers() }
-function getResults(){ return load(KEYS.results)||defaultResults() }
-function getMatch(){ return load(KEYS.match)||{local:'La Fortuna',visitante:'',fecha:'',hora:'',lugar:'',jornada:'',cat:'Primera'} }
-function getPhotos(){ return load(KEYS.photos)||[] }
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
 
-function defaultPlayers(){
-  const data={};
-  ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c=>data[c]=[]);
-  data['Primera']=[
+// ══════════════════════════════════════
+// CLOUDINARY UPLOAD HELPER
+// ══════════════════════════════════════
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: 'POST', body: fd
+  });
+  if (!res.ok) throw new Error('Cloudinary upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
+// ══════════════════════════════════════
+// FIRESTORE HELPERS
+// ══════════════════════════════════════
+async function fsGet(docPath) {
+  try {
+    const snap = await getDoc(doc(db, ...docPath.split('/')));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { console.error('fsGet error', e); return null; }
+}
+async function fsSet(docPath, data) {
+  await setDoc(doc(db, ...docPath.split('/')), data);
+}
+async function fsGetCol(colPath) {
+  const snap = await getDocs(collection(db, colPath));
+  return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+}
+async function fsAdd(colPath, data) {
+  const ref = await addDoc(collection(db, colPath), data);
+  return ref.id;
+}
+async function fsDel(docPath) {
+  await deleteDoc(doc(db, ...docPath.split('/')));
+}
+async function fsUpdate(docPath, data) {
+  await updateDoc(doc(db, ...docPath.split('/')), data);
+}
+
+// ══════════════════════════════════════
+// IN-MEMORY CACHE (for speed)
+// ══════════════════════════════════════
+let cache = { news: null, players: null, results: null, match: null, photos: null };
+
+async function getNews() {
+  if (!cache.news) cache.news = await fsGetCol('news');
+  return cache.news || [];
+}
+async function getResults() {
+  if (!cache.results) cache.results = await fsGetCol('results');
+  return cache.results || [];
+}
+async function getPhotos() {
+  if (!cache.photos) cache.photos = await fsGetCol('photos');
+  return cache.photos || [];
+}
+async function getMatch() {
+  if (!cache.match) {
+    const d = await fsGet('settings/match');
+    cache.match = d || {local:'La Fortuna',visitante:'',fecha:'',hora:'',lugar:'',jornada:'',cat:'Primera'};
+  }
+  return cache.match;
+}
+async function getPlayers() {
+  if (!cache.players) {
+    const d = await fsGet('settings/players');
+    cache.players = d ? d.data : null;
+    if (!cache.players) {
+      cache.players = {};
+      ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c => cache.players[c] = []);
+    }
+  }
+  return cache.players;
+}
+
+// ══════════════════════════════════════
+// KEYS (for compatibility with default logic)
+// ══════════════════════════════════════
+const KEYS = { news:'news', players:'players', results:'results', match:'match', photos:'photos' };
+
+// ══════════════════════════════════════
+// DEFAULT PLAYERS
+// ══════════════════════════════════════
+function defaultPlayers() {
+  const data = {};
+  ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c => data[c] = []);
+  data['Primera'] = [
     {id:1,nombre:'Roberto Díaz',numero:1,posicion:'Portero',edad:28,goles:0,partidos:18,asistencias:0},
     {id:2,nombre:'Andrés Ruiz',numero:3,posicion:'Defensa Central',edad:25,goles:2,partidos:18,asistencias:1},
     {id:3,nombre:'Mateo Vargas',numero:10,posicion:'Mediapunta',edad:22,goles:11,partidos:18,asistencias:7},
@@ -561,151 +652,95 @@ function defaultPlayers(){
   return data;
 }
 
-function defaultResults(){
-  return [
-    {id:1,local:'La Fortuna',visitante:'Dep. Sur',glocal:3,gvisitante:1,fecha:'2026-02-18',cat:'Primera',jornada:'Jornada 21'},
-    {id:2,local:'Unión Norte',visitante:'La Fortuna',glocal:0,gvisitante:2,fecha:'2026-02-11',cat:'Primera',jornada:'Jornada 20'},
-  ];
-}
-
 // ══════════════════════════════════════
-// NAVIGATION
+// SIDEBAR NAV
 // ══════════════════════════════════════
-const CATEGORIES = ['primera','sub18','sub16','sub14','sub12','sub10','sub8'];
-const CAT_NAMES = {primera:'Primera',sub18:'Sub-18',sub16:'Sub-16',sub14:'Sub-14',sub12:'Sub-12',sub10:'Sub-10',sub8:'Sub-8'};
-let currentCat = null;
+let currentPanel = 'dashboard';
+let currentCat = 'Primera';
 
-function showPanel(id, btn){
-  // hide all panels
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.sb-link').forEach(l=>l.classList.remove('active'));
-
-  if(btn) btn.classList.add('active');
-
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
+  const panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+  const link = document.querySelector(`.sb-link[data-panel="${name}"]`);
+  if (link) link.classList.add('active');
+  currentPanel = name;
   const titles = {
-    dashboard:'Dashboard', proximo:'Próximo Partido', resultados:'Resultados',
-    noticias:'Noticias', galeria:'Galería',
-    primera:'Primera', sub18:'Sub-18', sub16:'Sub-16', sub14:'Sub-14',
-    sub12:'Sub-12', sub10:'Sub-10', sub8:'Sub-8'
+    dashboard: 'Dashboard', partido: 'Próximo Partido', resultados: 'Resultados',
+    noticias: 'Noticias', galeria: 'Galería', categorias: 'Categorías'
   };
-  const subs = {
-    dashboard:'Resumen General', proximo:'Configurar Partido', resultados:'Historial de Partidos',
-    noticias:'Blog del Club', galeria:'Fotos del Club',
-    primera:'Gestión de Plantilla', sub18:'Gestión de Plantilla', sub16:'Gestión de Plantilla',
-    sub14:'Gestión de Plantilla', sub12:'Gestión de Plantilla', sub10:'Gestión de Plantilla', sub8:'Gestión de Plantilla'
-  };
-
-  document.getElementById('topbar-title').textContent = titles[id]||id;
-  document.getElementById('topbar-sub').textContent = subs[id]||'';
-
-  if(CATEGORIES.includes(id)){
-    currentCat = CAT_NAMES[id];
-    document.getElementById('cat-panel-title').textContent = CAT_NAMES[id];
-    document.getElementById('cat-panel-sub').textContent = 'Plantilla · '+CAT_NAMES[id];
-    document.getElementById('panel-categoria').classList.add('active');
-    renderCategoryPlayers();
-  } else {
-    const panel = document.getElementById('panel-'+id);
-    if(panel) panel.classList.add('active');
-  }
-
-  // refresh data
-  if(id==='dashboard') renderDashboard();
-  if(id==='noticias') renderNewsTable();
-  if(id==='resultados') renderResults('Todas');
-  if(id==='proximo') loadMatchEditor();
-  if(id==='galeria') renderPhotos();
+  document.getElementById('topbar-panel-title').textContent = titles[name] || name;
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'partido') loadMatchEditor();
+  if (name === 'resultados') renderResults('Todas');
+  if (name === 'noticias') renderNewsTable();
+  if (name === 'galeria') renderPhotos();
+  if (name === 'categorias') renderCategoryPlayers();
 }
+window.showPanel = showPanel;
 
 // ══════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════
-function renderDashboard(){
-  const news = getNews();
-  const players = getPlayers();
-  const results = getResults();
-  const photos = getPhotos();
-
-  const totalPlayers = Object.values(players).reduce((s,arr)=>s+arr.length,0);
-
+async function renderDashboard() {
+  const [news, results, photos, players] = await Promise.all([getNews(), getResults(), getPhotos(), getPlayers()]);
   document.getElementById('dash-noticias').textContent = news.length;
-  document.getElementById('dash-jugadores').textContent = totalPlayers;
-  document.getElementById('dash-fotos').textContent = photos.length;
   document.getElementById('dash-resultados').textContent = results.length;
-
+  document.getElementById('dash-fotos').textContent = photos.length;
+  const total = Object.values(players).reduce((s, arr) => s + (arr.length || 0), 0);
+  document.getElementById('dash-jugadores').textContent = total;
   // Recent news
-  const newsList = document.getElementById('dash-news-list');
-  const recent = [...news].reverse().slice(0,4);
-  newsList.innerHTML = recent.length ? recent.map(n=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.04)">
-      <div>
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:.9rem;letter-spacing:1px">${n.titulo}</div>
-        <div style="font-size:.75rem;color:var(--gray);margin-top:.1rem">${n.fecha} · ${n.cat}</div>
-      </div>
-      <span class="badge ${n.estado==='Publicado'?'badge-pub':'badge-draft'}">${n.estado}</span>
-    </div>
-  `).join('') : '<div style="color:var(--gray);font-size:.85rem">Aún no hay noticias.</div>';
-
-  // Match preview
-  const m = getMatch();
-  const mprev = document.getElementById('dash-match-preview');
-  if(m.visitante){
-    mprev.innerHTML = `
-      <div style="font-family:'Bebas Neue';font-size:1.4rem;margin-bottom:.5rem">${m.local} <span style="color:var(--gold)">VS</span> ${m.visitante}</div>
-      <div style="font-family:'Barlow Condensed';font-size:.75rem;letter-spacing:2px;color:var(--gray);text-transform:uppercase">${m.cat} · ${m.fecha||'Sin fecha'} ${m.hora||''}</div>
-      <div style="font-family:'Barlow Condensed';font-size:.7rem;color:var(--gray);margin-top:.25rem">${m.lugar||''}</div>
-    `;
-  } else {
-    mprev.innerHTML = '<div style="color:var(--gray);font-family:\'Barlow Condensed\';font-size:.8rem;letter-spacing:2px">No hay partido configurado.</div>';
+  const tbody = document.getElementById('recent-news-tbody');
+  const recent = [...news].reverse().slice(0, 5);
+  if (!recent.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--gray);font-family:'Barlow Condensed';letter-spacing:2px">Aún no hay noticias.</td></tr>`;
+    return;
   }
-
-  // Categories breakdown
-  const catsDiv = document.getElementById('dash-categories');
-  catsDiv.innerHTML = Object.entries(players).map(([cat,arr])=>`
-    <div style="background:var(--dark3);padding:1rem;text-align:center;border:1px solid rgba(212,160,23,.06)">
-      <div style="font-family:'Bebas Neue';font-size:2rem;color:var(--gold)">${arr.length}</div>
-      <div style="font-family:'Barlow Condensed';font-size:.65rem;letter-spacing:2px;color:var(--gray);text-transform:uppercase">${cat}</div>
-    </div>
+  tbody.innerHTML = recent.map(n => `
+    <tr>
+      <td><div style="font-family:'Barlow Condensed';font-weight:700">${n.titulo}</div></td>
+      <td><span class="badge badge-cat">${n.cat}</span></td>
+      <td style="font-size:.85rem;color:var(--gray)">${n.fecha||''}</td>
+      <td><span class="badge ${n.estado==='Publicado'?'badge-pub':'badge-draft'}">${n.estado}</span></td>
+    </tr>
   `).join('');
 }
 
 // ══════════════════════════════════════
 // PRÓXIMO PARTIDO
 // ══════════════════════════════════════
-function loadMatchEditor(){
-  const m = getMatch();
-  document.getElementById('pm-local').value = m.local||'La Fortuna';
-  document.getElementById('pm-visitante').value = m.visitante||'';
-  document.getElementById('pm-fecha').value = m.fecha||'';
-  document.getElementById('pm-hora').value = m.hora||'';
-  document.getElementById('pm-lugar').value = m.lugar||'';
-  document.getElementById('pm-jornada').value = m.jornada||'';
-  document.getElementById('pm-cat').value = m.cat||'Primera';
+async function loadMatchEditor() {
+  const m = await getMatch();
+  document.getElementById('pm-local').value = m.local || 'La Fortuna';
+  document.getElementById('pm-visitante').value = m.visitante || '';
+  document.getElementById('pm-fecha').value = m.fecha || '';
+  document.getElementById('pm-hora').value = m.hora || '';
+  document.getElementById('pm-lugar').value = m.lugar || '';
+  document.getElementById('pm-jornada').value = m.jornada || '';
+  document.getElementById('pm-cat').value = m.cat || 'Primera';
   updateMatchPreview();
 }
 
-['pm-local','pm-visitante','pm-fecha','pm-hora','pm-lugar','pm-jornada','pm-cat'].forEach(id=>{
-  const el = document.getElementById(id);
-  if(el) el.addEventListener('input', updateMatchPreview);
-});
-
-function updateMatchPreview(){
-  document.getElementById('pv-local').textContent = document.getElementById('pm-local').value||'La Fortuna';
-  document.getElementById('pv-visitante').textContent = document.getElementById('pm-visitante').value||'Rival';
-  document.getElementById('pv-cat').textContent = document.getElementById('pm-cat').value||'Primera';
+function updateMatchPreview() {
+  const local = document.getElementById('pm-local').value || 'La Fortuna';
+  const visitante = document.getElementById('pm-visitante').value || 'Visitante';
   const fecha = document.getElementById('pm-fecha').value;
   const hora = document.getElementById('pm-hora').value;
   const lugar = document.getElementById('pm-lugar').value;
   const jornada = document.getElementById('pm-jornada').value;
+  document.getElementById('pv-local').textContent = local;
+  document.getElementById('pv-visitante').textContent = visitante;
   let info = [];
-  if(fecha) info.push(new Date(fecha+'T12:00').toLocaleDateString('es',{day:'numeric',month:'long',year:'numeric'}));
-  if(hora) info.push(hora+'h');
-  if(lugar) info.push(lugar);
-  if(jornada) info.push(jornada);
-  document.getElementById('pv-info').textContent = info.join(' · ')||'—';
+  if (fecha) info.push(new Date(fecha + 'T12:00').toLocaleDateString('es', {day:'numeric',month:'long',year:'numeric'}));
+  if (hora) info.push(hora + 'h');
+  if (lugar) info.push(lugar);
+  if (jornada) info.push(jornada);
+  document.getElementById('pv-info').textContent = info.join(' · ') || '—';
 }
+window.updateMatchPreview = updateMatchPreview;
 
-function saveMatch(){
+async function saveMatch() {
   const m = {
     local: document.getElementById('pm-local').value,
     visitante: document.getElementById('pm-visitante').value,
@@ -715,38 +750,42 @@ function saveMatch(){
     jornada: document.getElementById('pm-jornada').value,
     cat: document.getElementById('pm-cat').value,
   };
-  save(KEYS.match, m);
-  toast('✓ Partido guardado exitosamente');
+  toast('Guardando…', '#888');
+  try {
+    await fsSet('settings/match', m);
+    cache.match = m;
+    toast('✓ Partido guardado exitosamente');
+  } catch(e) { toast('✗ Error al guardar: ' + e.message, '#C0392B'); }
 }
+window.saveMatch = saveMatch;
 
-function clearMatch(){
-  ['pm-local','pm-visitante','pm-fecha','pm-hora','pm-lugar','pm-jornada'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('pm-local').value='La Fortuna';
+function clearMatch() {
+  ['pm-local','pm-visitante','pm-fecha','pm-hora','pm-lugar','pm-jornada'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pm-local').value = 'La Fortuna';
   updateMatchPreview();
 }
+window.clearMatch = clearMatch;
 
 // ══════════════════════════════════════
 // RESULTADOS
 // ══════════════════════════════════════
 let resultFilter = 'Todas';
 
-function renderResults(filter){
+async function renderResults(filter) {
   resultFilter = filter;
-  const results = getResults();
-  const filtered = filter==='Todas' ? results : results.filter(r=>r.cat===filter);
+  const results = await getResults();
+  const filtered = filter === 'Todas' ? results : results.filter(r => r.cat === filter);
   const container = document.getElementById('results-list');
-
-  if(!filtered.length){
+  if (!filtered.length) {
     container.innerHTML = '<div style="text-align:center;padding:3rem;font-family:\'Barlow Condensed\';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">No hay resultados para esta categoría.</div>';
     return;
   }
-
-  container.innerHTML = [...filtered].reverse().map(r=>{
+  container.innerHTML = [...filtered].reverse().map(r => {
     const fortuna = r.local.toLowerCase().includes('fortuna');
     const gF = fortuna ? r.glocal : r.gvisitante;
     const gR = fortuna ? r.gvisitante : r.glocal;
-    const result = gF>gR?'V':gF===gR?'E':'D';
-    const rColor = result==='V'?'#27AE60':result==='E'?'#D4A017':'#C0392B';
+    const result = gF > gR ? 'V' : gF === gR ? 'E' : 'D';
+    const rColor = result === 'V' ? '#27AE60' : result === 'E' ? '#D4A017' : '#C0392B';
     return `
     <div style="background:var(--dark3);border:1px solid rgba(212,160,23,.08);padding:1.2rem 1.5rem;margin-bottom:.5rem;display:grid;grid-template-columns:1fr auto 1fr auto;gap:1rem;align-items:center">
       <div>
@@ -760,206 +799,235 @@ function renderResults(filter){
       </div>
       <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end">
         <span style="background:${rColor}22;border:1px solid ${rColor}55;color:${rColor};font-family:'Bebas Neue';font-size:.9rem;padding:3px 10px">${result==='V'?'VICTORIA':result==='E'?'EMPATE':'DERROTA'}</span>
-        <button class="btn btn-danger btn-sm" onclick="deleteResult(${r.id})">✕</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteResult('${r._id}')">✕</button>
       </div>
-    </div>
-  `}).join('');
+    </div>`;
+  }).join('');
 }
+window.renderResults = renderResults;
 
-function filterResults(cat, btn){
-  document.querySelectorAll('#res-tabs .cat-tab').forEach(t=>t.classList.remove('active'));
-  if(btn) btn.classList.add('active');
+function filterResults(cat, btn) {
+  document.querySelectorAll('#res-tabs .cat-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
   renderResults(cat);
 }
+window.filterResults = filterResults;
 
-function saveResult(){
-  const results = getResults();
+async function saveResult() {
   const newR = {
-    id: Date.now(),
     local: document.getElementById('r-local').value,
     visitante: document.getElementById('r-visitante').value,
-    glocal: parseInt(document.getElementById('r-glocal').value)||0,
-    gvisitante: parseInt(document.getElementById('r-gvisitante').value)||0,
+    glocal: parseInt(document.getElementById('r-glocal').value) || 0,
+    gvisitante: parseInt(document.getElementById('r-gvisitante').value) || 0,
     fecha: document.getElementById('r-fecha').value,
     cat: document.getElementById('r-cat').value,
     jornada: document.getElementById('r-jornada').value,
+    ts: Date.now()
   };
-  if(!newR.visitante){ toast('⚠ Ingresa el equipo visitante','#C0392B'); return; }
-  results.push(newR);
-  save(KEYS.results, results);
-  closeModal('modal-resultado');
-  renderResults(resultFilter);
-  toast('✓ Resultado registrado');
-  // reset
-  ['r-visitante','r-glocal','r-gvisitante','r-fecha','r-jornada'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('r-local').value='La Fortuna';
+  if (!newR.visitante) { toast('⚠ Ingresa el equipo visitante', '#C0392B'); return; }
+  toast('Guardando…', '#888');
+  try {
+    const id = await fsAdd('results', newR);
+    cache.results = null; // invalidate cache
+    closeModal('modal-resultado');
+    await renderResults(resultFilter);
+    toast('✓ Resultado registrado');
+    ['r-visitante','r-glocal','r-gvisitante','r-fecha','r-jornada'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('r-local').value = 'La Fortuna';
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.saveResult = saveResult;
 
-function deleteResult(id){
-  if(!confirm('¿Eliminar este resultado?')) return;
-  const results = getResults().filter(r=>r.id!==id);
-  save(KEYS.results, results);
-  renderResults(resultFilter);
-  toast('✓ Resultado eliminado');
+async function deleteResult(id) {
+  if (!confirm('¿Eliminar este resultado?')) return;
+  try {
+    await fsDel('results/' + id);
+    cache.results = null;
+    await renderResults(resultFilter);
+    toast('✓ Resultado eliminado');
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.deleteResult = deleteResult;
 
 // ══════════════════════════════════════
 // NOTICIAS
 // ══════════════════════════════════════
 let editingNewsId = null;
 
-function renderNewsTable(){
-  const news = getNews();
+async function renderNewsTable() {
+  const news = await getNews();
   const tbody = document.getElementById('news-tbody');
-  if(!news.length){
+  if (!news.length) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--gray);font-family:'Barlow Condensed';letter-spacing:2px;text-transform:uppercase">Aún no hay noticias publicadas.</td></tr>`;
     return;
   }
-  tbody.innerHTML = [...news].reverse().map(n=>`
+  tbody.innerHTML = [...news].reverse().map(n => `
     <tr>
       <td><div style="font-family:'Barlow Condensed';font-weight:700">${n.titulo}</div><div style="font-size:.75rem;color:var(--gray);margin-top:.2rem">${(n.resumen||'').slice(0,60)}${n.resumen&&n.resumen.length>60?'...':''}</div></td>
       <td><span class="badge badge-cat">${n.cat}</span></td>
-      <td style="font-size:.85rem;color:var(--gray)">${n.fecha}</td>
+      <td style="font-size:.85rem;color:var(--gray)">${n.fecha||''}</td>
       <td><span class="badge ${n.estado==='Publicado'?'badge-pub':'badge-draft'}">${n.estado}</span></td>
       <td><div style="display:flex;gap:.4rem">
-        <button class="btn btn-outline btn-sm" onclick="editNews(${n.id})">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteNews(${n.id})">✕</button>
+        <button class="btn btn-outline btn-sm" onclick="editNews('${n._id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteNews('${n._id}')">✕</button>
       </div></td>
     </tr>
   `).join('');
 }
+window.renderNewsTable = renderNewsTable;
 
-function saveNews(){
-  const news = getNews();
+async function saveNews() {
   const data = {
-    id: editingNewsId || Date.now(),
     titulo: document.getElementById('n-titulo').value,
     cat: document.getElementById('n-cat').value,
     estado: document.getElementById('n-estado').value,
     img: document.getElementById('n-img').value,
     resumen: document.getElementById('n-resumen').value,
     contenido: document.getElementById('n-contenido').value,
-    fecha: new Date().toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}),
+    fecha: new Date().toLocaleDateString('es', {day:'numeric',month:'short',year:'numeric'}),
+    ts: Date.now()
   };
-  if(!data.titulo){ toast('⚠ El título es obligatorio','#C0392B'); return; }
-
-  if(editingNewsId){
-    const idx = news.findIndex(n=>n.id===editingNewsId);
-    if(idx>-1) news[idx]=data;
-  } else {
-    news.push(data);
-  }
-  save(KEYS.news, news);
-  closeModal('modal-noticia');
-  renderNewsTable();
-  toast('✓ Noticia guardada exitosamente');
-  editingNewsId = null;
+  if (!data.titulo) { toast('⚠ El título es obligatorio', '#C0392B'); return; }
+  toast('Guardando…', '#888');
+  try {
+    if (editingNewsId) {
+      await fsUpdate('news/' + editingNewsId, data);
+    } else {
+      await fsAdd('news', data);
+    }
+    cache.news = null;
+    closeModal('modal-noticia');
+    await renderNewsTable();
+    toast('✓ Noticia guardada exitosamente');
+    editingNewsId = null;
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.saveNews = saveNews;
 
-function editNews(id){
-  const n = getNews().find(n=>n.id===id);
-  if(!n) return;
+async function editNews(id) {
+  const news = await getNews();
+  const n = news.find(n => n._id === id);
+  if (!n) return;
   editingNewsId = id;
   document.getElementById('news-modal-title').textContent = 'Editar Noticia';
   document.getElementById('n-titulo').value = n.titulo;
   document.getElementById('n-cat').value = n.cat;
   document.getElementById('n-estado').value = n.estado;
-  document.getElementById('n-img').value = n.img||'';
-  // Restaurar preview
-  if(n.img){
-    const prev = document.getElementById('news-img-preview');
-    const prevImg = document.getElementById('news-img-preview-img');
-    prevImg.src = n.img;
-    prev.style.display = 'block';
+  document.getElementById('n-img').value = n.img || '';
+  if (n.img) {
+    document.getElementById('news-img-preview-img').src = n.img;
+    document.getElementById('news-img-preview').style.display = 'block';
     document.getElementById('news-upload-zone').style.display = 'none';
     document.getElementById('n-img-url').value = n.img.startsWith('data:') ? '' : n.img;
   } else {
     clearNewsImage();
   }
-  document.getElementById('n-resumen').value = n.resumen||'';
-  document.getElementById('n-contenido').value = n.contenido||'';
+  document.getElementById('n-resumen').value = n.resumen || '';
+  document.getElementById('n-contenido').value = n.contenido || '';
   openModal('modal-noticia');
 }
+window.editNews = editNews;
 
-function deleteNews(id){
-  if(!confirm('¿Eliminar esta noticia?')) return;
-  save(KEYS.news, getNews().filter(n=>n.id!==id));
-  renderNewsTable();
-  toast('✓ Noticia eliminada');
+async function deleteNews(id) {
+  if (!confirm('¿Eliminar esta noticia?')) return;
+  try {
+    await fsDel('news/' + id);
+    cache.news = null;
+    await renderNewsTable();
+    toast('✓ Noticia eliminada');
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.deleteNews = deleteNews;
 
 // ══════════════════════════════════════
-// GALERÍA
+// GALERÍA (con Cloudinary)
 // ══════════════════════════════════════
-function handlePhotoUpload(input){
-  const photos = getPhotos();
+async function handlePhotoUploadFixed(input) {
   const files = Array.from(input.files);
-  let processed = 0;
+  if (!files.length) return;
+  toast(`Subiendo ${files.length} foto(s)…`, '#888');
 
-  files.forEach(file=>{
-    if(file.size > 5*1024*1024){ toast('⚠ '+file.name+' supera 5MB','#C0392B'); return; }
-    const reader = new FileReader();
-    reader.onload = e=>{
-      photos.push({ id:Date.now()+Math.random(), src:e.target.result, name:file.name, cat:'', date:new Date().toLocaleDateString('es') });
-      processed++;
-      if(processed===files.length){ save(KEYS.photos,photos); renderPhotos(); toast('✓ '+files.length+' foto(s) subida(s)'); }
-    };
-    reader.readAsDataURL(file);
-  });
+  let uploaded = 0;
+  for (const file of files) {
+    try {
+      const url = await uploadToCloudinary(file);
+      await fsAdd('photos', {
+        src: url,
+        name: file.name,
+        cat: '',
+        date: new Date().toLocaleDateString('es'),
+        ts: Date.now()
+      });
+      uploaded++;
+    } catch(e) {
+      toast('✗ Error subiendo ' + file.name, '#C0392B');
+    }
+  }
+  cache.photos = null;
+  await renderPhotos();
+  const photoCount = (await getPhotos()).length;
+  document.getElementById('dash-fotos').textContent = photoCount;
+  toast(`✓ ${uploaded} foto(s) subida(s) correctamente`);
 }
+window.handlePhotoUploadFixed = handlePhotoUploadFixed;
 
-function renderPhotos(filter=''){
-  const photos = getPhotos();
-  const filtered = filter ? photos.filter(p=>p.cat===filter) : photos;
+// keep old name for compatibility
+window.handlePhotoUpload = handlePhotoUploadFixed;
+
+async function renderPhotos(filter = '') {
+  const photos = await getPhotos();
+  const filtered = filter ? photos.filter(p => p.cat === filter) : photos;
   const grid = document.getElementById('photo-grid');
   const noPhotos = document.getElementById('no-photos');
   document.getElementById('photo-count').textContent = photos.length;
-
-  if(!filtered.length){ grid.innerHTML=''; noPhotos.style.display='block'; return; }
-  noPhotos.style.display='none';
-
-  grid.innerHTML = filtered.map(p=>`
+  if (!filtered.length) { grid.innerHTML = ''; noPhotos.style.display = 'block'; return; }
+  noPhotos.style.display = 'none';
+  grid.innerHTML = filtered.map(p => `
     <div class="photo-item">
       <img src="${p.src}" alt="${p.name}" loading="lazy"/>
       <div class="photo-overlay">
-        <button class="btn btn-danger btn-sm" onclick="deletePhoto('${p.id}')">✕ Eliminar</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePhoto('${p._id}')">✕ Eliminar</button>
       </div>
     </div>
   `).join('');
 }
+window.renderPhotos = renderPhotos;
 
-function filterPhotos(cat){ renderPhotos(cat); }
+function filterPhotos(cat) { renderPhotos(cat); }
+window.filterPhotos = filterPhotos;
 
-function deletePhoto(id){
-  if(!confirm('¿Eliminar esta foto?')) return;
-  save(KEYS.photos, getPhotos().filter(p=>p.id!=id));
-  renderPhotos();
-  toast('✓ Foto eliminada');
+async function deletePhoto(id) {
+  if (!confirm('¿Eliminar esta foto?')) return;
+  try {
+    await fsDel('photos/' + id);
+    cache.photos = null;
+    await renderPhotos();
+    toast('✓ Foto eliminada');
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.deletePhoto = deletePhoto;
 
 // ══════════════════════════════════════
 // CATEGORÍAS / JUGADORES
 // ══════════════════════════════════════
 let editingPlayerId = null;
 
-function renderCategoryPlayers(){
-  const players = getPlayers();
-  const catPlayers = players[currentCat]||[];
+async function renderCategoryPlayers() {
+  const players = await getPlayers();
+  const results = await getResults();
+  const catPlayers = players[currentCat] || [];
   const tbody = document.getElementById('cat-players-tbody');
-
   document.getElementById('cat-total').textContent = catPlayers.length;
-  document.getElementById('cat-goles').textContent = catPlayers.reduce((s,p)=>s+(p.goles||0),0);
-  document.getElementById('cat-victorias').textContent = getResults().filter(r=>r.cat===currentCat && (
-    (r.local.toLowerCase().includes('fortuna') && r.glocal>r.gvisitante)||
-    (r.visitante.toLowerCase().includes('fortuna') && r.gvisitante>r.glocal)
+  document.getElementById('cat-goles').textContent = catPlayers.reduce((s, p) => s + (p.goles || 0), 0);
+  document.getElementById('cat-victorias').textContent = results.filter(r => r.cat === currentCat && (
+    (r.local.toLowerCase().includes('fortuna') && r.glocal > r.gvisitante) ||
+    (r.visitante.toLowerCase().includes('fortuna') && r.gvisitante > r.glocal)
   )).length;
-
-  if(!catPlayers.length){
+  if (!catPlayers.length) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray);font-family:'Barlow Condensed';letter-spacing:2px;text-transform:uppercase">Agrega el primer jugador a ${currentCat}.</td></tr>`;
     return;
   }
-
-  tbody.innerHTML = [...catPlayers].sort((a,b)=>a.numero-b.numero).map(p=>`
+  tbody.innerHTML = [...catPlayers].sort((a, b) => a.numero - b.numero).map(p => `
     <tr>
       <td><span style="font-family:'Bebas Neue';font-size:1.2rem;color:var(--gold)">${p.numero}</span></td>
       <td><div style="font-family:'Barlow Condensed';font-weight:700">${p.nombre}</div></td>
@@ -974,184 +1042,173 @@ function renderCategoryPlayers(){
     </tr>
   `).join('');
 }
+window.renderCategoryPlayers = renderCategoryPlayers;
 
-function openAddPlayer(){
+function switchCat(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('#cat-tabs .cat-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('cat-title-name').textContent = cat;
+  renderCategoryPlayers();
+}
+window.switchCat = switchCat;
+
+function openAddPlayer() {
   editingPlayerId = null;
-  document.getElementById('player-modal-title').textContent = 'Agregar Jugador · '+currentCat;
+  document.getElementById('player-modal-title').textContent = 'Agregar Jugador · ' + currentCat;
   document.getElementById('p-categoria').value = currentCat;
-  ['p-nombre','p-numero','p-edad','p-goles','p-partidos','p-asistencias'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('p-posicion').value='Portero';
+  ['p-nombre','p-numero','p-edad','p-goles','p-partidos','p-asistencias'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('p-posicion').value = 'Portero';
   openModal('modal-jugador');
 }
+window.openAddPlayer = openAddPlayer;
 
-function editPlayer(id){
-  const players = getPlayers();
-  const catP = players[currentCat]||[];
-  const p = catP.find(x=>x.id===id);
-  if(!p) return;
+async function editPlayer(id) {
+  const players = await getPlayers();
+  const catP = players[currentCat] || [];
+  const p = catP.find(x => x.id === id);
+  if (!p) return;
   editingPlayerId = id;
   document.getElementById('player-modal-title').textContent = 'Editar Jugador';
   document.getElementById('p-nombre').value = p.nombre;
   document.getElementById('p-numero').value = p.numero;
   document.getElementById('p-posicion').value = p.posicion;
-  document.getElementById('p-edad').value = p.edad||'';
-  document.getElementById('p-goles').value = p.goles||0;
-  document.getElementById('p-partidos').value = p.partidos||0;
-  document.getElementById('p-asistencias').value = p.asistencias||0;
+  document.getElementById('p-edad').value = p.edad || '';
+  document.getElementById('p-goles').value = p.goles || 0;
+  document.getElementById('p-partidos').value = p.partidos || 0;
+  document.getElementById('p-asistencias').value = p.asistencias || 0;
   document.getElementById('p-categoria').value = currentCat;
   openModal('modal-jugador');
 }
+window.editPlayer = editPlayer;
 
-function savePlayer(){
+async function savePlayer() {
   const nombre = document.getElementById('p-nombre').value;
   const numero = parseInt(document.getElementById('p-numero').value);
-  if(!nombre||!numero){ toast('⚠ Nombre y número son obligatorios','#C0392B'); return; }
-
-  const players = getPlayers();
+  if (!nombre || !numero) { toast('⚠ Nombre y número son obligatorios', '#C0392B'); return; }
+  const players = await getPlayers();
   const cat = currentCat;
-  if(!players[cat]) players[cat]=[];
-
+  if (!players[cat]) players[cat] = [];
   const data = {
-    id: editingPlayerId||Date.now(),
+    id: editingPlayerId || Date.now(),
     nombre, numero,
     posicion: document.getElementById('p-posicion').value,
-    edad: parseInt(document.getElementById('p-edad').value)||null,
-    goles: parseInt(document.getElementById('p-goles').value)||0,
-    partidos: parseInt(document.getElementById('p-partidos').value)||0,
-    asistencias: parseInt(document.getElementById('p-asistencias').value)||0,
+    edad: parseInt(document.getElementById('p-edad').value) || null,
+    goles: parseInt(document.getElementById('p-goles').value) || 0,
+    partidos: parseInt(document.getElementById('p-partidos').value) || 0,
+    asistencias: parseInt(document.getElementById('p-asistencias').value) || 0,
   };
-
-  if(editingPlayerId){
-    const idx = players[cat].findIndex(p=>p.id===editingPlayerId);
-    if(idx>-1) players[cat][idx]=data;
+  if (editingPlayerId) {
+    const idx = players[cat].findIndex(p => p.id === editingPlayerId);
+    if (idx > -1) players[cat][idx] = data;
   } else {
     players[cat].push(data);
   }
-  save(KEYS.players, players);
-  closeModal('modal-jugador');
-  renderCategoryPlayers();
-  toast('✓ Jugador guardado');
-  editingPlayerId=null;
+  toast('Guardando…', '#888');
+  try {
+    await fsSet('settings/players', { data: players });
+    cache.players = players;
+    closeModal('modal-jugador');
+    await renderCategoryPlayers();
+    toast('✓ Jugador guardado');
+    editingPlayerId = null;
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.savePlayer = savePlayer;
 
-function deletePlayer(id){
-  if(!confirm('¿Eliminar este jugador?')) return;
-  const players = getPlayers();
-  players[currentCat] = (players[currentCat]||[]).filter(p=>p.id!==id);
-  save(KEYS.players, players);
-  renderCategoryPlayers();
-  toast('✓ Jugador eliminado');
+async function deletePlayer(id) {
+  if (!confirm('¿Eliminar este jugador?')) return;
+  const players = await getPlayers();
+  players[currentCat] = (players[currentCat] || []).filter(p => p.id !== id);
+  try {
+    await fsSet('settings/players', { data: players });
+    cache.players = players;
+    await renderCategoryPlayers();
+    toast('✓ Jugador eliminado');
+  } catch(e) { toast('✗ Error: ' + e.message, '#C0392B'); }
 }
+window.deletePlayer = deletePlayer;
 
 // ══════════════════════════════════════
 // MODAL HELPERS
 // ══════════════════════════════════════
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) {
   document.getElementById(id).classList.remove('open');
-  if(id==='modal-noticia'){
-    editingNewsId=null;
-    document.getElementById('news-modal-title').textContent='Nueva Noticia';
+  if (id === 'modal-noticia') {
+    editingNewsId = null;
+    document.getElementById('news-modal-title').textContent = 'Nueva Noticia';
     clearNewsImage();
-    document.getElementById('n-img-url').value='';
+    document.getElementById('n-img-url').value = '';
   }
 }
-document.querySelectorAll('.modal-bg').forEach(m=>{
-  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
+window.openModal = openModal;
+window.closeModal = closeModal;
+
+document.querySelectorAll('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
 // ══════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════
-function toast(msg, color='#D4A017'){
+function toast(msg, color = '#D4A017') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.style.background = color;
-  t.style.color = color==='#D4A017'?'#0A0A0A':'#fff';
+  t.style.color = color === '#D4A017' ? '#0A0A0A' : '#fff';
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),3000);
+  setTimeout(() => t.classList.remove('show'), 3000);
 }
+window.toast = toast;
 
 // ══════════════════════════════════════
-// IMAGEN EN NOTICIAS
+// IMAGEN EN NOTICIAS — con Cloudinary
 // ══════════════════════════════════════
-function handleNewsImage(input){
+async function handleNewsImage(input) {
   const file = input.files[0];
-  if(!file) return;
-  if(file.size > 3*1024*1024){ toast('⚠ La imagen supera 3MB','#C0392B'); return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('n-img').value = e.target.result;
-    document.getElementById('news-img-preview-img').src = e.target.result;
+  if (!file) return;
+  toast('Subiendo imagen…', '#888');
+  try {
+    const url = await uploadToCloudinary(file);
+    document.getElementById('n-img').value = url;
+    document.getElementById('news-img-preview-img').src = url;
     document.getElementById('news-img-preview').style.display = 'block';
     document.getElementById('news-upload-zone').style.display = 'none';
-    document.getElementById('n-img-url').value = '';
-  };
-  reader.readAsDataURL(file);
+    document.getElementById('n-img-url').value = url;
+    toast('✓ Imagen subida');
+  } catch(e) {
+    toast('✗ Error subiendo imagen', '#C0392B');
+  }
 }
+window.handleNewsImage = handleNewsImage;
 
-function previewUrlImage(url){
+function previewUrlImage(url) {
   document.getElementById('n-img').value = url;
-  if(url.startsWith('http')){
+  if (url.startsWith('http')) {
     document.getElementById('news-img-preview-img').src = url;
     document.getElementById('news-img-preview').style.display = 'block';
     document.getElementById('news-upload-zone').style.display = 'none';
   }
 }
+window.previewUrlImage = previewUrlImage;
 
-function clearNewsImage(){
+function clearNewsImage() {
   document.getElementById('n-img').value = '';
   document.getElementById('news-img-preview').style.display = 'none';
   document.getElementById('news-upload-zone').style.display = 'block';
 }
+window.clearNewsImage = clearNewsImage;
 
-// ══════════════════════════════════════
-// GALERÍA — fix localStorage compartido
-// ══════════════════════════════════════
-function handlePhotoUploadFixed(input){
-  const files = Array.from(input.files);
-  if(!files.length) return;
-  let processed = 0;
-  const photos = getPhotos();
-
-  files.forEach(file => {
-    if(file.size > 5*1024*1024){ toast('⚠ '+file.name+' supera 5MB','#C0392B'); processed++; return; }
-    const reader = new FileReader();
-    reader.onload = e => {
-      photos.push({
-        id: Date.now() + '_' + Math.random().toString(36).slice(2),
-        src: e.target.result,
-        name: file.name,
-        cat: '',
-        date: new Date().toLocaleDateString('es')
-      });
-      processed++;
-      if(processed === files.length){
-        save(KEYS.photos, photos);
-        renderPhotos();
-        // Actualizar contador del dashboard también
-        document.getElementById('dash-fotos').textContent = photos.length;
-        toast('✓ ' + files.length + ' foto(s) subida(s) correctamente');
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-// ══════════════════════════════════════
-// INIT
-// ══════════════════════════════════════
 // ══════════════════════════════════════
 // PASSWORD PROTECTION
 // ══════════════════════════════════════
-// Change this password to whatever you want!
 const ADMIN_PASSWORD = 'Fortuna2026';
 
-function checkPassword(){
+function checkPassword() {
   const input = document.getElementById('admin-pwd').value;
   const errDiv = document.getElementById('pwd-error');
-  if(input === ADMIN_PASSWORD){
-    // Save session so they don't need to re-enter for 8 hours
+  if (input === ADMIN_PASSWORD) {
     sessionStorage.setItem('lf_admin_auth', Date.now());
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app-content').style.display = 'flex';
@@ -1160,30 +1217,45 @@ function checkPassword(){
     errDiv.style.display = 'block';
     document.getElementById('admin-pwd').value = '';
     document.getElementById('admin-pwd').focus();
-    setTimeout(()=> errDiv.style.display='none', 3000);
+    setTimeout(() => errDiv.style.display = 'none', 3000);
   }
 }
+window.checkPassword = checkPassword;
 
-function initAdmin(){
-  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase();
-  renderDashboard();
+// Allow Enter key on password screen
+document.getElementById('admin-pwd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+
+async function initAdmin() {
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es', {
+    weekday:'short', day:'numeric', month:'short', year:'numeric'
+  }).toUpperCase();
+  // Init sidebar links
+  document.querySelectorAll('.sb-link[data-panel]').forEach(link => {
+    link.addEventListener('click', () => showPanel(link.dataset.panel));
+  });
   const today = new Date().toISOString().split('T')[0];
-  ['pm-fecha','r-fecha'].forEach(id=>{ const el=document.getElementById(id); if(el&&!el.value) el.value=today; });
+  ['pm-fecha','r-fecha'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = today;
+  });
+  await renderDashboard();
 }
 
-// Check if already authenticated this session
-(function(){
+// Check session
+(function() {
   const auth = sessionStorage.getItem('lf_admin_auth');
   const eightHours = 8 * 60 * 60 * 1000;
-  if(auth && (Date.now() - parseInt(auth)) < eightHours){
+  if (auth && (Date.now() - parseInt(auth)) < eightHours) {
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app-content').style.display = 'flex';
     initAdmin();
   } else {
-    // Show lock, focus input
-    setTimeout(()=> document.getElementById('admin-pwd').focus(), 100);
+    setTimeout(() => document.getElementById('admin-pwd').focus(), 100);
   }
 })();
+
 </script>
 </div><!-- /app-content -->
 

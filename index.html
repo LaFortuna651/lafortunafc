@@ -63,7 +63,7 @@
     .hero-lines{position:absolute;inset:0;overflow:hidden}
     .hero-lines::before{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:120%;height:55%;border-radius:50% 50% 0 0/100% 100% 0 0;border:1px solid rgba(212,160,23,.08)}
     .hero-lines::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80%;height:40%;border-radius:50% 50% 0 0/100% 100% 0 0;border:1px solid rgba(212,160,23,.06)}
-    .hero-content{position:relative;text-align:center;z-index:2;animation:heroIn 1.2s ease both;padding:0 1rem;width:100%}
+    .hero-content{position:relative;text-align:center;z-index:2;animation:heroIn 1.2s ease both;padding:0 1rem;width:100%;max-width:600px;margin:0 auto;box-sizing:border-box}
     @keyframes heroIn{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
     @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
     .hero-eyebrow{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:6px;text-transform:uppercase;color:var(--gold);margin-bottom:1.5rem;animation:heroIn 1s .2s ease both}
@@ -598,92 +598,119 @@
 <!-- Admin FAB -->
 <a href="admin.html" id="admin-fab">⚙ Admin</a>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-// ════════════════════════════════
-// DATA LOADERS
-// ════════════════════════════════
-const KEYS={news:'lf_news',players:'lf_players',results:'lf_results',match:'lf_match',photos:'lf_photos'};
-function load(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}}
 
-function getNews(){
-  const d=load(KEYS.news);
-  return Array.isArray(d)?d:[];
+<script type="module">
+// ════════════════════════════════
+// FIREBASE CONFIG
+// ════════════════════════════════
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, collection, getDocs }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDypPnE093twlvr4J0Cl4sxIfRHu77DyAA",
+  authDomain: "la-fortuna-b4580.firebaseapp.com",
+  projectId: "la-fortuna-b4580",
+  storageBucket: "la-fortuna-b4580.firebasestorage.app",
+  messagingSenderId: "909010085808",
+  appId: "1:909010085808:web:78030057789df37ace5875",
+  measurementId: "G-B4MQGE5KKJ"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+// ════════════════════════════════
+// DATA LOADERS (Firebase)
+// ════════════════════════════════
+async function getNews() {
+  const snap = await getDocs(collection(db, 'news'));
+  return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
 }
-function getPlayers(){
-  const d=load(KEYS.players)||{};
-  ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c=>{if(!d[c])d[c]=[]});
-  // seed Primera with defaults if empty
-  if(!d['Primera'].length) d['Primera']=[
-    {id:1,nombre:'Roberto Díaz',numero:1,posicion:'Portero',edad:28,goles:0,partidos:18,asistencias:0},
-    {id:2,nombre:'Andrés Ruiz',numero:3,posicion:'Defensa Central',edad:25,goles:2,partidos:18,asistencias:1},
-    {id:3,nombre:'Mateo Vargas',numero:10,posicion:'Mediapunta',edad:22,goles:11,partidos:18,asistencias:7},
-    {id:4,nombre:'Fernando Ríos',numero:9,posicion:'Delantero Centro',edad:24,goles:15,partidos:17,asistencias:3},
-  ];
-  return d;
+async function getPlayers() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'players'));
+    const d = snap.exists() ? snap.data().data : null;
+    const players = d || {};
+    ['Primera','Sub-18','Sub-16','Sub-14','Sub-12','Sub-10','Sub-8'].forEach(c => { if (!players[c]) players[c] = []; });
+    if (!players['Primera'].length) players['Primera'] = [
+      {id:1,nombre:'Roberto Díaz',numero:1,posicion:'Portero',edad:28,goles:0,partidos:18,asistencias:0},
+      {id:2,nombre:'Andrés Ruiz',numero:3,posicion:'Defensa Central',edad:25,goles:2,partidos:18,asistencias:1},
+      {id:3,nombre:'Mateo Vargas',numero:10,posicion:'Mediapunta',edad:22,goles:11,partidos:18,asistencias:7},
+      {id:4,nombre:'Fernando Ríos',numero:9,posicion:'Delantero Centro',edad:24,goles:15,partidos:17,asistencias:3},
+    ];
+    return players;
+  } catch(e) { return {}; }
 }
-function getResults(){
-  const d=load(KEYS.results);
-  if(Array.isArray(d)&&d.length) return d;
-  return [
-  {id:1,local:'La Fortuna',visitante:'Dep. Sur',glocal:3,gvisitante:1,fecha:'2026-02-18',cat:'Primera',jornada:'Jornada 21'},
-  {id:2,local:'Unión Norte',visitante:'La Fortuna',glocal:0,gvisitante:2,fecha:'2026-02-11',cat:'Primera',jornada:'Jornada 20'},
-];}
-function getMatch(){return load(KEYS.match)||null}
-function getPhotos(){
-  const d=load(KEYS.photos);
-  return Array.isArray(d)?d:[];
+async function getResults() {
+  try {
+    const snap = await getDocs(collection(db, 'results'));
+    const res = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    if (res.length) return res;
+    return [
+      {_id:'d1',local:'La Fortuna',visitante:'Dep. Sur',glocal:3,gvisitante:1,fecha:'2026-02-18',cat:'Primera',jornada:'Jornada 21'},
+      {_id:'d2',local:'Unión Norte',visitante:'La Fortuna',glocal:0,gvisitante:2,fecha:'2026-02-11',cat:'Primera',jornada:'Jornada 20'},
+    ];
+  } catch(e) { return []; }
+}
+async function getMatch() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'match'));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { return null; }
+}
+async function getPhotos() {
+  try {
+    const snap = await getDocs(collection(db, 'photos'));
+    return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+  } catch(e) { return []; }
 }
 
 // ════════════════════════════════
 // NAV
 // ════════════════════════════════
-function toggleMenu(){document.getElementById('navLinks').classList.toggle('open')}
-window.addEventListener('scroll',()=>{
-  document.getElementById('navbar').style.background=window.scrollY>50?'rgba(5,5,5,.98)':'rgba(10,10,10,.92)';
+function toggleMenu() { document.getElementById('navLinks').classList.toggle('open'); }
+window.toggleMenu = toggleMenu;
+window.addEventListener('scroll', () => {
+  document.getElementById('navbar').style.background = window.scrollY > 50 ? 'rgba(5,5,5,.98)' : 'rgba(10,10,10,.92)';
 });
 
 // ════════════════════════════════
 // MATCH DISPLAY
 // ════════════════════════════════
-function renderMatch(){
-  const m=getMatch();
-  if(!m||!m.visitante) return;
-  document.getElementById('m-local').textContent=m.local||'La Fortuna';
-  document.getElementById('m-visitante').textContent=m.visitante;
-  document.getElementById('m-visitante').style.color='var(--white)';
-  const parts=[];
-  if(m.fecha) parts.push(new Date(m.fecha+'T12:00').toLocaleDateString('es',{day:'numeric',month:'long'}));
-  if(m.hora) parts.push(m.hora+'h');
-  if(m.cat) parts.push(m.cat);
-  document.getElementById('m-fecha').textContent=parts.join(' · ')||'Próximamente';
-  const info=[];
-  if(m.lugar) info.push(m.lugar);
-  if(m.jornada) info.push(m.jornada);
-  document.getElementById('m-info').textContent=info.join(' · ');
+async function renderMatch() {
+  const m = await getMatch();
+  if (!m || !m.visitante) return;
+  document.getElementById('m-local').textContent = m.local || 'La Fortuna';
+  document.getElementById('m-visitante').textContent = m.visitante;
+  document.getElementById('m-visitante').style.color = 'var(--white)';
+  const parts = [];
+  if (m.fecha) parts.push(new Date(m.fecha + 'T12:00').toLocaleDateString('es', {day:'numeric',month:'long'}));
+  if (m.hora) parts.push(m.hora + 'h');
+  if (m.cat) parts.push(m.cat);
+  document.getElementById('m-fecha').textContent = parts.join(' · ') || 'Próximamente';
+  const info = [];
+  if (m.lugar) info.push(m.lugar);
+  if (m.jornada) info.push(m.jornada);
+  document.getElementById('m-info').textContent = info.join(' · ');
 }
 
 // ════════════════════════════════
 // NOTICIAS
 // ════════════════════════════════
-const BG_COLORS=['linear-gradient(135deg,#1a1a2e,#0f3460)','linear-gradient(135deg,#1a0a0a,#2d1515)','linear-gradient(135deg,#0a1a0a,#152d15)','linear-gradient(135deg,#1a1a0a,#2d2d15)','linear-gradient(135deg,#0a0a1a,#15152d)'];
-const EMOJIS=['⚽','🏆','👕','🎽','📋','🏟️'];
+const BG_COLORS = ['linear-gradient(135deg,#1a1a2e,#0f3460)','linear-gradient(135deg,#1a0a0a,#2d1515)','linear-gradient(135deg,#0a1a0a,#152d15)','linear-gradient(135deg,#1a1a0a,#2d2d15)','linear-gradient(135deg,#0a0a1a,#15152d)'];
+const EMOJIS = ['⚽','🏆','👕','🎽','📋','🏟️'];
 
-function renderNews(){
-  const allNews=getNews().filter(n=>n.estado==='Publicado'||!n.estado);
-  const news=[...allNews].reverse().slice(0,5);
-  const grid=document.getElementById('news-grid');
-  const noNews=document.getElementById('no-news');
-
-  if(!news.length){
-    grid.innerHTML='';
-    noNews.style.display='block';
-    return;
-  }
-  noNews.style.display='none';
-
-  grid.innerHTML=news.map((n,i)=>{
-    const isFirst=i===0;
-    const bg=n.img?`background-image:url('${n.img}');background-size:cover;background-position:center`:`background:${BG_COLORS[i%BG_COLORS.length]}`;
+async function renderNews() {
+  const allNews = (await getNews()).filter(n => n.estado === 'Publicado' || !n.estado);
+  const news = [...allNews].reverse().slice(0, 5);
+  const grid = document.getElementById('news-grid');
+  const noNews = document.getElementById('no-news');
+  if (!news.length) { grid.innerHTML = ''; noNews.style.display = 'block'; return; }
+  noNews.style.display = 'none';
+  grid.innerHTML = news.map((n, i) => {
+    const isFirst = i === 0;
+    const bg = n.img ? `background-image:url('${n.img}');background-size:cover;background-position:center` : `background:${BG_COLORS[i%BG_COLORS.length]}`;
     return `
     <div class="news-card" style="${isFirst?'grid-row:span 2':''}">
       <div class="news-img-bg" style="${bg};min-height:${isFirst?'460':'220'}px;display:flex;align-items:center;justify-content:center">
@@ -692,8 +719,8 @@ function renderNews(){
       <div class="news-overlay">
         <div class="news-cat">${n.cat}</div>
         <div class="news-ttl">${n.titulo}</div>
-        ${n.resumen&&!isFirst?`<div class="news-dt">${(n.resumen).slice(0,80)}...</div>`:''}
-        <div class="news-dt">${n.fecha}</div>
+        ${n.resumen&&!isFirst?`<div class="news-dt">${n.resumen.slice(0,80)}...</div>`:''}
+        <div class="news-dt">${n.fecha||''}</div>
       </div>
     </div>`;
   }).join('');
@@ -702,7 +729,7 @@ function renderNews(){
 // ════════════════════════════════
 // CATEGORÍAS
 // ════════════════════════════════
-const CATEGORIES=[
+const CATEGORIES = [
   {key:'Primera',label:'Primera',sub:'Equipo Principal',icon:'⭐'},
   {key:'Sub-18',label:'Sub-18',sub:'Categoría Juvenil',icon:'🔥'},
   {key:'Sub-16',label:'Sub-16',sub:'Categoría Cadete',icon:'💪'},
@@ -712,11 +739,11 @@ const CATEGORIES=[
   {key:'Sub-8',label:'Sub-8',sub:'Categoría Prebenjamín',icon:'🌱'},
 ];
 
-function renderCategories(){
-  const players=getPlayers();
-  const grid=document.getElementById('cat-grid');
-  grid.innerHTML=CATEGORIES.map((c,i)=>{
-    const count=(players[c.key]||[]).length;
+async function renderCategories() {
+  const players = await getPlayers();
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = CATEGORIES.map((c, i) => {
+    const count = (players[c.key] || []).length;
     return `
     <div class="cat-card" onclick="openCatModal('${c.key}')">
       <div class="cat-number">${c.icon}</div>
@@ -730,53 +757,57 @@ function renderCategories(){
 // ════════════════════════════════
 // MODAL CATEGORÍA
 // ════════════════════════════════
-let currentModalCat='';
-let currentModalFilter='Todos';
+let currentModalCat = '';
+let currentModalFilter = 'Todos';
+let _cachedPlayers = null;
 
-function openCatModal(catKey){
-  currentModalCat=catKey;
-  currentModalFilter='Todos';
-  const info=CATEGORIES.find(c=>c.key===catKey)||{label:catKey,sub:'Plantilla'};
-  document.getElementById('modal-cat-title').textContent=info.label;
-  document.getElementById('modal-cat-sub').textContent=info.sub+' · Plantilla '+new Date().getFullYear();
-  document.querySelectorAll('#cat-modal .squad-tab').forEach((t,i)=>{t.classList.toggle('active',i===0)});
+async function openCatModal(catKey) {
+  currentModalCat = catKey;
+  currentModalFilter = 'Todos';
+  _cachedPlayers = await getPlayers();
+  const info = CATEGORIES.find(c => c.key === catKey) || {label:catKey, sub:'Plantilla'};
+  document.getElementById('modal-cat-title').textContent = info.label;
+  document.getElementById('modal-cat-sub').textContent = info.sub + ' · Plantilla ' + new Date().getFullYear();
+  document.querySelectorAll('#cat-modal .squad-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
   renderModalPlayers('Todos');
   document.getElementById('cat-modal').classList.add('open');
-  document.body.style.overflow='hidden';
+  document.body.style.overflow = 'hidden';
 }
+window.openCatModal = openCatModal;
 
-function closeCatModal(){
+function closeCatModal() {
   document.getElementById('cat-modal').classList.remove('open');
-  document.body.style.overflow='';
+  document.body.style.overflow = '';
 }
+window.closeCatModal = closeCatModal;
 
-function filterModalPlayers(filter,btn){
-  currentModalFilter=filter;
-  document.querySelectorAll('#cat-modal .squad-tab').forEach(t=>t.classList.remove('active'));
-  if(btn) btn.classList.add('active');
+function filterModalPlayers(filter, btn) {
+  currentModalFilter = filter;
+  document.querySelectorAll('#cat-modal .squad-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
   renderModalPlayers(filter);
 }
+window.filterModalPlayers = filterModalPlayers;
 
-function posGroup(pos){
-  if(pos.toLowerCase().includes('portero')) return 'Portero';
-  if(pos.toLowerCase().includes('defensa')||pos.toLowerCase().includes('lateral')) return 'Defensa';
-  if(pos.toLowerCase().includes('delantero')||pos.toLowerCase().includes('centro')&&pos.toLowerCase().includes('d')) return 'Delantero';
+function posGroup(pos) {
+  if (pos.toLowerCase().includes('portero')) return 'Portero';
+  if (pos.toLowerCase().includes('defensa') || pos.toLowerCase().includes('lateral')) return 'Defensa';
+  if (pos.toLowerCase().includes('delantero') || (pos.toLowerCase().includes('centro') && pos.toLowerCase().includes('d'))) return 'Delantero';
   return 'Medio';
 }
 
-function renderModalPlayers(filter){
-  const players=getPlayers();
-  let list=(players[currentModalCat]||[]);
-  if(filter!=='Todos') list=list.filter(p=>posGroup(p.posicion)===filter);
-  list=[...list].sort((a,b)=>a.numero-b.numero);
-
-  const grid=document.getElementById('modal-players-grid');
-  if(!list.length){
-    grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">No hay jugadores en esta categoría aún.</div>`;
+function renderModalPlayers(filter) {
+  const players = _cachedPlayers || {};
+  let list = (players[currentModalCat] || []);
+  if (filter !== 'Todos') list = list.filter(p => posGroup(p.posicion) === filter);
+  list = [...list].sort((a, b) => a.numero - b.numero);
+  const grid = document.getElementById('modal-players-grid');
+  if (!list.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">No hay jugadores en esta categoría aún.</div>`;
     return;
   }
-  grid.innerHTML=list.map(p=>{
-    const init=p.nombre.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  grid.innerHTML = list.map(p => {
+    const init = p.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
     return `
     <div class="player-card">
       <div class="player-number">${p.numero}</div>
@@ -792,37 +823,39 @@ function renderModalPlayers(filter){
   }).join('');
 }
 
-document.getElementById('cat-modal').addEventListener('click',e=>{
-  if(e.target===document.getElementById('cat-modal')) closeCatModal();
+document.getElementById('cat-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('cat-modal')) closeCatModal();
 });
 
 // ════════════════════════════════
 // RESULTADOS PÚBLICOS
 // ════════════════════════════════
-let pubResultFilter='Todas';
+let pubResultFilter = 'Todas';
+let _cachedResults = null;
 
-function filterPubResults(cat,btn){
-  pubResultFilter=cat;
-  document.querySelectorAll('#res-tabs .results-tab').forEach(t=>t.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  renderPubResults();
+function filterPubResults(cat, btn) {
+  pubResultFilter = cat;
+  document.querySelectorAll('#res-tabs .results-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderPubResultsFromCache();
 }
+window.filterPubResults = filterPubResults;
 
-function renderPubResults(){
-  const results=getResults();
-  const filtered=pubResultFilter==='Todas'?results:results.filter(r=>r.cat===pubResultFilter);
-  const container=document.getElementById('pub-results-list');
-  if(!filtered.length){
-    container.innerHTML=`<div style="text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">No hay resultados para esta categoría.</div>`;
+function renderPubResultsFromCache() {
+  const results = _cachedResults || [];
+  const filtered = pubResultFilter === 'Todas' ? results : results.filter(r => r.cat === pubResultFilter);
+  const container = document.getElementById('pub-results-list');
+  if (!filtered.length) {
+    container.innerHTML = `<div style="text-align:center;padding:3rem;font-family:'Barlow Condensed';font-size:.85rem;letter-spacing:3px;color:var(--gray);text-transform:uppercase">No hay resultados para esta categoría.</div>`;
     return;
   }
-  container.innerHTML=[...filtered].reverse().map(r=>{
-    const fortunaLocal=r.local.toLowerCase().includes('fortuna');
-    const gF=fortunaLocal?r.glocal:r.gvisitante;
-    const gR=fortunaLocal?r.gvisitante:r.glocal;
-    const res=gF>gR?'V':gF===gR?'E':'D';
-    const rClass=res==='V'?'rb-v':res==='E'?'rb-e':'rb-d';
-    const rLabel=res==='V'?'Victoria':res==='E'?'Empate':'Derrota';
+  container.innerHTML = [...filtered].reverse().map(r => {
+    const fortunaLocal = r.local.toLowerCase().includes('fortuna');
+    const gF = fortunaLocal ? r.glocal : r.gvisitante;
+    const gR = fortunaLocal ? r.gvisitante : r.glocal;
+    const res = gF > gR ? 'V' : gF === gR ? 'E' : 'D';
+    const rClass = res === 'V' ? 'rb-v' : res === 'E' ? 'rb-e' : 'rb-d';
+    const rLabel = res === 'V' ? 'Victoria' : res === 'E' ? 'Empate' : 'Derrota';
     return `
     <div class="result-row">
       <div style="text-align:left">
@@ -844,32 +877,33 @@ function renderPubResults(){
   }).join('');
 }
 
+async function renderPubResults() {
+  _cachedResults = await getResults();
+  renderPubResultsFromCache();
+}
+
 // ════════════════════════════════
 // GALERÍA PÚBLICA
 // ════════════════════════════════
-function renderGallery(){
-  const photos=getPhotos();  // all photos uploaded by admin
-  const grid=document.getElementById('gallery-grid');
-  const noGallery=document.getElementById('no-gallery');
-
-  if(!photos.length){
-    // Mostrar placeholders decorativos si no hay fotos
-    const placeholders=[
+async function renderGallery() {
+  const photos = await getPhotos();
+  const grid = document.getElementById('gallery-grid');
+  if (!photos.length) {
+    const placeholders = [
       {icon:'⚽',label:'Partido'},{icon:'🏆',label:'Copa'},
       {icon:'🎽',label:'Equipo'},{icon:'🏟️',label:'Estadio'},
       {icon:'👥',label:'Afición'},{icon:'🌟',label:'Gloria'}
     ];
-    const cols=[5,3,4,4,5,3];
-    grid.innerHTML=placeholders.map((p,i)=>`
-      <div class="gallery-item" style="grid-column:span ${cols[i]}>
+    const cols = [5,3,4,4,5,3];
+    grid.innerHTML = placeholders.map((p, i) => `
+      <div class="gallery-item" style="grid-column:span ${cols[i]}">
         <div class="gallery-ph">${p.icon} ${p.label}</div>
       </div>`).join('');
     return;
   }
-
-  const display=photos.slice(0,6);
-  const cols=[5,3,4,4,5,3];
-  grid.innerHTML=display.map((p,i)=>`
+  const display = photos.slice(0, 6);
+  const cols = [5,3,4,4,5,3];
+  grid.innerHTML = display.map((p, i) => `
     <div class="gallery-item" style="grid-column:span ${cols[i]||3}">
       <div class="gallery-ph" style="background-image:url('${p.src}');background-size:cover;background-position:center;color:transparent"></div>
     </div>`).join('');
@@ -878,34 +912,35 @@ function renderGallery(){
 // ════════════════════════════════
 // COUNTER ANIMATION
 // ════════════════════════════════
-const obsCounter=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    if(e.isIntersecting){
-      const el=e.target;
-      const target=parseInt(el.dataset.target);
-      const dur=1800;
-      const start=performance.now();
-      function step(now){
-        const p=Math.min((now-start)/dur,1);
-        const ease=1-Math.pow(1-p,3);
-        el.textContent=Math.round(ease*target);
-        if(p<1) requestAnimationFrame(step);
+const obsCounter = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const el = e.target;
+      const target = parseInt(el.dataset.target);
+      const dur = 1800;
+      const start = performance.now();
+      function step(now) {
+        const p = Math.min((now - start) / dur, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(ease * target);
+        if (p < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
       obsCounter.unobserve(el);
     }
   });
-},{threshold:.3});
-document.querySelectorAll('[data-target]').forEach(el=>obsCounter.observe(el));
+}, {threshold:.3});
+document.querySelectorAll('[data-target]').forEach(el => obsCounter.observe(el));
 
 // ════════════════════════════════
 // FORM — Web3Forms
 // ════════════════════════════════
-function updateSubject(val){
+function updateSubject(val) {
   document.getElementById('form-subject-hidden').value = 'La Fortuna FC · ' + val;
 }
+window.updateSubject = updateSubject;
 
-async function handleForm(e){
+async function handleForm(e) {
   e.preventDefault();
   const btn     = document.getElementById('submit-btn');
   const btnText = document.getElementById('btn-text');
@@ -913,16 +948,12 @@ async function handleForm(e){
   const success = document.getElementById('formSuccess');
   const errorDiv= document.getElementById('formError');
   const errorMsg= document.getElementById('error-msg');
-
-  success.style.display  = 'none';
+  success.style.display = 'none';
   errorDiv.style.display = 'none';
-
   btn.disabled = true;
   btnText.textContent = 'Enviando...';
   spinner.style.display = 'inline';
-
   const data = Object.fromEntries(new FormData(e.target));
-
   try {
     const res  = await fetch('https://api.web3forms.com/submit', {
       method: 'POST',
@@ -930,16 +961,15 @@ async function handleForm(e){
       body: JSON.stringify(data)
     });
     const json = await res.json();
-
-    if(res.ok && json.success){
+    if (res.ok && json.success) {
       success.style.display = 'block';
       e.target.reset();
-      setTimeout(()=> success.style.display = 'none', 6000);
+      setTimeout(() => success.style.display = 'none', 6000);
     } else {
       errorMsg.textContent = json.message || 'Error al enviar. Revisa tu Access Key.';
       errorDiv.style.display = 'block';
     }
-  } catch(err){
+  } catch(err) {
     errorMsg.textContent = 'Sin conexión. Verifica tu internet e intenta de nuevo.';
     errorDiv.style.display = 'block';
   } finally {
@@ -948,46 +978,42 @@ async function handleForm(e){
     spinner.style.display = 'none';
   }
 }
+window.handleForm = handleForm;
 
 // ════════════════════════════════
 // STATS LIVE
 // ════════════════════════════════
-function updateLiveStats(){
-  const players=getPlayers();
-  const total=Object.values(players).reduce((s,a)=>s+a.length,0);
-  const statPlayers=document.getElementById('stat-players');
-  if(statPlayers) statPlayers.dataset.target=total;
-
-  const results=getResults();
-  const wins=results.filter(r=>{
-    const fL=r.local.toLowerCase().includes('fortuna');
-    return fL?r.glocal>r.gvisitante:r.gvisitante>r.glocal;
+async function updateLiveStats() {
+  const [players, results] = await Promise.all([getPlayers(), getResults()]);
+  const total = Object.values(players).reduce((s, a) => s + a.length, 0);
+  const statPlayers = document.getElementById('stat-players');
+  if (statPlayers) statPlayers.dataset.target = total;
+  const wins = results.filter(r => {
+    const fL = r.local.toLowerCase().includes('fortuna');
+    return fL ? r.glocal > r.gvisitante : r.gvisitante > r.glocal;
   }).length;
-  const statWins=document.getElementById('stat-wins');
-  if(statWins) statWins.dataset.target=wins;
+  const statWins = document.getElementById('stat-wins');
+  if (statWins) statWins.dataset.target = wins;
 }
 
 // ════════════════════════════════
 // INIT
 // ════════════════════════════════
-function initSite(){
-  renderMatch();
-  renderNews();
-  renderCategories();
-  renderPubResults();
-  renderGallery();
-  updateLiveStats();
+async function initSite() {
+  await Promise.all([
+    renderMatch(),
+    renderNews(),
+    renderCategories(),
+    renderPubResults(),
+    renderGallery(),
+    updateLiveStats(),
+  ]);
 }
 
-if(document.readyState==='loading'){
+if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initSite);
 } else {
   initSite();
 }
-
-window.addEventListener('storage', function(e){
-  if(e.key && e.key.startsWith('lf_')) initSite();
-});
 </script>
 </body>
-</html>
