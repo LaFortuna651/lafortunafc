@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lafortuna651.github.io/lafortunafc/sitemap.xml
