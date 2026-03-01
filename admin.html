@@ -166,14 +166,21 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
     <span style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;letter-spacing:4px;color:#888;font-weight:700">LA FORTUNA FC</span>
   </div>
   <div style="display:flex;flex-direction:column;gap:.75rem;width:100%;max-width:320px">
+    <input id="admin-email" type="email"
+      placeholder="Correo electrónico"
+      value="admin@lafortunafc.com"
+      style="background:#1A1A1A;border:1px solid rgba(212,160,23,.3);color:#F5F0E8;
+             font-family:'Barlow',sans-serif;font-size:.95rem;padding:12px 18px;
+             outline:none;width:100%"
+    />
     <input id="admin-pwd" type="password"
-      placeholder="Contraseña de administrador"
+      placeholder="Contraseña"
       style="background:#1A1A1A;border:1px solid rgba(212,160,23,.3);color:#F5F0E8;
              font-family:'Barlow',sans-serif;font-size:1rem;padding:14px 18px;
              outline:none;width:100%;text-align:center;letter-spacing:4px"
-      onkeydown="if(event.key==='Enter') checkPassword()"
+      onkeydown="if(event.key='Enter') checkPassword()"
     />
-    <button onclick="checkPassword()" style="
+    <button id="login-btn" onclick="checkPassword()" style="
       background:#D4A017;color:#0A0A0A;
       font-family:'Barlow Condensed',sans-serif;font-weight:900;
       font-size:.9rem;letter-spacing:3px;text-transform:uppercase;
@@ -236,6 +243,7 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
     <div style="display:flex;gap:.75rem;align-items:center">
       <div class="topbar-badge" id="topbar-date"></div>
       <a href="index.html" target="_blank" class="btn btn-outline btn-sm">Ver Sitio →</a>
+      <button onclick="cerrarSesion()" class="btn btn-danger btn-sm" title="Cerrar sesión" style="font-size:.7rem;letter-spacing:1px">⬡ Salir</button>
     </div>
   </div>
 
@@ -536,6 +544,8 @@ body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;m
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, deleteDoc, updateDoc }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDypPnE093twlvr4J0Cl4sxIfRHu77DyAA",
@@ -552,6 +562,7 @@ const CLOUDINARY_PRESET = "LaFortuna";
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
 
 // ══════════════════════════════════════
 // CLOUDINARY UPLOAD HELPER
@@ -1225,3 +1236,86 @@ window.clearNewsImage = clearNewsImage;
 
 // ══════════════════════════════════════
 // PASSWORD PROTECTION
+// ══════════════════════════════════════
+// AUTENTICACIÓN — Firebase Auth
+// ══════════════════════════════════════
+
+function showLoginError(msg) {
+  const el = document.getElementById('pwd-error');
+  el.textContent = msg || '⚠ Credenciales incorrectas';
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+async function checkPassword() {
+  const emailInput = document.getElementById('admin-email');
+  const pwdInput   = document.getElementById('admin-pwd');
+  const btn        = document.getElementById('login-btn');
+  const email = emailInput ? emailInput.value.trim() : 'admin@lafortunafc.com';
+  const pwd   = pwdInput.value;
+  if (!pwd) { showLoginError('⚠ Ingresa tu contraseña'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Verificando…';
+  try {
+    await signInWithEmailAndPassword(auth, email, pwd);
+    // onAuthStateChanged will handle the rest
+  } catch(e) {
+    const msgs = {
+      'auth/invalid-credential':    '⚠ Contraseña incorrecta',
+      'auth/invalid-email':         '⚠ Email inválido',
+      'auth/user-not-found':        '⚠ Usuario no encontrado',
+      'auth/wrong-password':        '⚠ Contraseña incorrecta',
+      'auth/too-many-requests':     '⚠ Demasiados intentos. Espera unos minutos.',
+      'auth/network-request-failed':'⚠ Sin conexión a internet',
+    };
+    showLoginError(msgs[e.code] || '⚠ Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar al Panel';
+  }
+}
+window.checkPassword = checkPassword;
+
+async function cerrarSesion() {
+  await signOut(auth);
+}
+window.cerrarSesion = cerrarSesion;
+
+// ══════════════════════════════════════
+// INIT ADMIN
+// ══════════════════════════════════════
+async function initAdmin() {
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('es', {
+    weekday:'short', day:'numeric', month:'short', year:'numeric'
+  }).toUpperCase();
+  const today = new Date().toISOString().split('T')[0];
+  ['pm-fecha','r-fecha'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = today;
+  });
+  await renderDashboard();
+}
+
+// ── Firebase Auth state listener ──
+onAuthStateChanged(auth, user => {
+  if (user) {
+    // Usuario autenticado → mostrar panel
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'flex';
+    initAdmin();
+  } else {
+    // No autenticado → mostrar pantalla de login
+    document.getElementById('lock-screen').style.display = 'flex';
+    document.getElementById('app-content').style.display = 'none';
+  }
+});
+
+// Enter key on password field
+document.getElementById('admin-pwd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+});
+
+</script>
+</div><!-- /app-content -->
+</body>
+</html>
