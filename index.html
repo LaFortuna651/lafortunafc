@@ -1155,12 +1155,29 @@
     }
 
     /* Patrón de 6 que se repite: 5-3-4 / 4-5-3 */
-    .gallery-item:nth-child(6n+1) { grid-column: span 5 }
-    .gallery-item:nth-child(6n+2) { grid-column: span 3 }
-    .gallery-item:nth-child(6n+3) { grid-column: span 4 }
-    .gallery-item:nth-child(6n+4) { grid-column: span 4 }
-    .gallery-item:nth-child(6n+5) { grid-column: span 5 }
-    .gallery-item:nth-child(6n+6) { grid-column: span 3 }
+    .gallery-item:nth-child(6n+1) {
+      grid-column: span 5
+    }
+
+    .gallery-item:nth-child(6n+2) {
+      grid-column: span 3
+    }
+
+    .gallery-item:nth-child(6n+3) {
+      grid-column: span 4
+    }
+
+    .gallery-item:nth-child(6n+4) {
+      grid-column: span 4
+    }
+
+    .gallery-item:nth-child(6n+5) {
+      grid-column: span 5
+    }
+
+    .gallery-item:nth-child(6n+6) {
+      grid-column: span 3
+    }
 
     .gallery-ph {
       width: 100%;
@@ -1514,7 +1531,7 @@
     <ul class="nav-links" id="navLinks">
       <li><a href="#historia">Historia</a></li>
       <li><a href="#noticias">Noticias</a></li>
-      <li><a href="#categorias">Categorías</a></li>
+      <!-- <li><a href="#categorias">Categorías</a></li> -->
       <li><a href="#resultados">Resultados</a></li>
       <li><a href="#galeria">Galería</a></li>
       <li><a href="#contacto" class="nav-cta">Contacto</a></li>
@@ -1535,7 +1552,7 @@
       <h1 class="hero-title"><span class="g">La</span><br>Fortuna</h1>
       <p class="hero-sub">Pasión · Gloria · Unidad</p>
       <div class="hero-btns">
-        <a href="#categorias" class="btn-primary">Ver Categorías</a>
+        <!-- <a href="#categorias" class="btn-primary">Ver Categorías</a> -->
         <a href="#noticias" class="btn-outline">Últimas Noticias</a>
       </div>
     </div>
@@ -1658,16 +1675,6 @@
     </div>
   </section>
 
-  <!-- CATEGORÍAS -->
-  <section id="categorias">
-    <p class="section-label">Nuestros Equipos</p>
-    <h2 class="section-title">Categorías</h2>
-    <div class="section-divider"></div>
-    <div class="cat-grid" id="cat-grid">
-      <!-- filled by JS -->
-    </div>
-  </section>
-
   <!-- MODAL NOTICIA (artículo completo) -->
   <div class="modal-bg" id="news-modal">
     <div class="modal-box">
@@ -1737,7 +1744,7 @@
         <div class="section-divider"></div>
         <p style="color:var(--gray);line-height:1.8;margin-bottom:1.5rem">La Fortuna FC continúa consolidando su juego
           con una de las defensas más sólidas del campeonato y una delantera en plena forma.</p>
-        <a href="#categorias" class="btn-primary" style="font-size:.8rem;padding:12px 28px">Ver Categorías</a>
+        <!-- <a href="#categorias" class="btn-primary" style="font-size:.8rem;padding:12px 28px">Ver Categorías</a> -->
       </div>
       <div class="stats-numbers">
         <div class="stat-block">
@@ -1875,7 +1882,8 @@
             <div class="ci-label">Entrenamiento</div>
             <div class="ci-text"><br>Lunes, Miércoles y Viernes, 16:00 – 17:30h</div>
             <br>
-            <div class="ci-text">Cancha de fútbol privada<br>Amaguaña, García Moreno y Jerónimo Carrión (A dos cuadras hacia arriba de la panadería el tambo)</div>
+            <div class="ci-text">Cancha de fútbol privada<br>Amaguaña, García Moreno y Jerónimo Carrión (A dos cuadras
+              hacia arriba de la panadería el tambo)</div>
           </div>
         </div>
         <div style="display:flex;gap:1.5rem;align-items:flex-start">
@@ -1914,7 +1922,7 @@
         <a href="#" class="social-link">tw</a><a href="#" class="social-link">yt</a>
       </div> -->
       </div>
-      <div>
+      <!-- <div>
         <div class="footer-col-title">Categorías</div>
         <ul class="footer-links">
           <li><a href="#categorias" onclick="openCatModal('Primera')">Primera</a></li>
@@ -1925,7 +1933,7 @@
           <li><a href="#categorias" onclick="openCatModal('Sub-10')">Sub-10</a></li>
           <li><a href="#categorias" onclick="openCatModal('Sub-8')">Sub-8</a></li>
         </ul>
-      </div>
+      </div> -->
       <div>
         <div class="footer-col-title">Información</div>
         <ul class="footer-links">
